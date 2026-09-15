@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openmuse-agent"
+version = "0.1.0"
+description = "A local-first, auditable personal AI agent runtime"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "tahodev"}]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+openmuse = "openmuse.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openmuse"]
