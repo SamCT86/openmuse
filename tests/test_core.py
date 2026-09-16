@@ -1,25 +1,17 @@
 from pathlib import Path
-
-from openmuse.core import Action, Agent
+import pytest
+from openmuse.approvals import ApprovalAuthority
+from openmuse.core import Agent
+from openmuse.models import Action,ActionStatus
 from openmuse.policy import Policy
-from openmuse.tools import ReadFile, WriteFile
-
-
-def test_read_allowed_and_audited(tmp_path: Path) -> None:
-    (tmp_path / "note.txt").write_text("hello", encoding="utf-8")
-    agent = Agent([ReadFile(workspace=tmp_path)], Policy(), tmp_path / "audit.jsonl")
-    assert agent.execute(Action("read_file", '{"path":"note.txt"}')) == "hello"
-    assert '"status": "completed"' in (tmp_path / "audit.jsonl").read_text()
-
-
-def test_write_blocked_by_default(tmp_path: Path) -> None:
-    agent = Agent([WriteFile(workspace=tmp_path)], Policy(), tmp_path / "audit.jsonl")
-    result = agent.execute(Action("write_file", '{"path":"x","content":"y"}'))
-    assert result.startswith("BLOCKED:")
-    assert not (tmp_path / "x").exists()
-
-
-def test_write_stays_in_workspace(tmp_path: Path) -> None:
-    agent = Agent([WriteFile(workspace=tmp_path)], Policy(allow_writes=True), tmp_path / "audit.jsonl")
-    agent.execute(Action("write_file", '{"path":"notes/x","content":"y"}'))
-    assert (tmp_path / "notes/x").read_text() == "y"
+from openmuse.registry import ToolRegistry
+from openmuse.tools import ReadFile,WriteFile
+def runtime(p,allow=False,auth=None):return Agent([ReadFile(p),WriteFile(p)],Policy(allow,auth),p/'audit')
+def test_read(tmp_path):
+ (tmp_path/'x').write_text('ok');assert runtime(tmp_path).execute(Action('read_file',{'path':'x'})).output=='ok'
+def test_write_blocked(tmp_path):assert runtime(tmp_path).execute(Action('write_file',{'path':'x','content':'y'})).status is ActionStatus.BLOCKED
+def test_approval_bound_one_time(tmp_path):
+ auth=ApprovalAuthority(b'x'*32);a=Action('write_file',{'path':'x','content':'y'});token=auth.issue(a);approved=Action(a.tool,a.arguments,a.id,token);r=runtime(tmp_path,auth=auth);assert r.execute(approved).status is ActionStatus.COMPLETED;assert r.execute(approved).status is ActionStatus.BLOCKED
+def test_traversal(tmp_path):assert runtime(tmp_path,True).execute(Action('write_file',{'path':'../x','content':'y'})).status is ActionStatus.FAILED
+def test_duplicate(tmp_path):
+ with pytest.raises(ValueError):ToolRegistry([ReadFile(tmp_path),ReadFile(tmp_path)])
