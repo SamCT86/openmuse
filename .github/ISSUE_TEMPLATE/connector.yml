@@ -1,0 +1,12 @@
+name: Connector proposal
+description: Propose a least-privilege integration
+body:
+  - type: input
+    attributes: {label: Service and use case}
+    validations: {required: true}
+  - type: textarea
+    attributes: {label: Required scopes and data flow}
+    validations: {required: true}
+  - type: textarea
+    attributes: {label: Risks, revocation, and simulation mode}
+    validations: {required: true}
