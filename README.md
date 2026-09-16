@@ -3,42 +3,60 @@
 [![CI](https://github.com/tahodev/openmuse/actions/workflows/ci.yml/badge.svg)](https://github.com/tahodev/openmuse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A local-first, auditable personal AI agent runtime. OpenMuse is independent and is not affiliated with or endorsed by Meta. It uses no Meta code, branding, or assets.
+A local-first, auditable personal AI agent runtime. OpenMuse separates untrusted planners from typed tools, host-issued approvals, durable tasks, encrypted secrets, and redacted audit history.
 
-## What works now
-- provider-neutral, budgeted multi-step planner loop
-- typed actions and results with duplicate-safe tool registry
-- read/write/represent/money risk classes
-- host-issued, expiring, one-time approvals bound to exact action arguments
-- hash-chained, redacted, permission-restricted audit log
-- workspace-contained file tools and public-network-only HTTP fetch
-- OpenAI-compatible planner adapter
+> Independent project. Not affiliated with or endorsed by Meta. No Meta code, branding, or assets are used.
 
-## 60-second demo
+## Try it in under 5 minutes
+
+Requires Python 3.11+ and Git.
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
+git clone https://github.com/tahodev/openmuse.git
+cd openmuse
+python -m venv .venv
+source .venv/bin/activate             # Windows: .venv\Scripts\activate
 pip install -e '.[dev]'
-openmuse read_file --args '{"path":"README.md"}'
-openmuse write_file --args '{"path":"plan.md","content":"hello"}' # blocked
-openmuse write_file --allow-writes --args '{"path":"plan.md","content":"hello"}'
-pytest
+python examples/e2e_demo.py
 ```
-Actions are recorded in `.openmuse/audit.jsonl`. Run `PYTHONPATH=src python examples/local_planner.py` for a complete planner-to-tool example.
 
-## Architecture
-`Goal -> Planner -> typed Action -> Policy/Approval -> Tool -> typed Result`, with redacted audit metadata at the trusted executor boundary. See [architecture](docs/architecture.md), [threat model](docs/threat-model.md), and [roadmap](docs/roadmap.md).
+The deterministic demo needs no API key and exercises a web-channel message, durable SQLite task, two-step planner, workspace tools, result delivery, and hash-chained audit log.
 
-## Direction
-OpenMuse starts with a narrow privacy-first wedge: local files, then read-only mail and calendar. Durable jobs, provenance-aware memory, least-privilege connectors, isolated workers, and an out-of-model approval UI are planned before broad autonomy. Connector manifests will be versioned and may expose MCP compatibility without weakening OpenMuse risk metadata.
+![OpenMuse end-to-end demo](docs/assets/demo.svg)
 
-## Safety
-The runtime is alpha software, not safe for sensitive unattended work. Webpages, messages, documents, and tool output are untrusted. Do not give it broad credentials. See [SECURITY.md](SECURITY.md).
+## Status
+
+| Capability | Status |
+|---|---|
+| Typed, budgeted agent loop | Working |
+| Exact-action, expiring, one-time approvals | Working |
+| Workspace file tools + SSRF-resistant public fetch | Working |
+| Redacted hash-chained audit | Working |
+| SQLite task checkpoints/cancel/restart | Working |
+| In-process web channel adapter | Experimental |
+| Envelope-encrypted local secret vault | Experimental |
+| Browser-worker policy envelope | Experimental |
+| Hosted chat/approval UI | Not yet |
+| Production browser sandbox and connectors | Not yet |
+| OTP broker and exact-total purchase flow | Not yet |
+| Provenance-aware memory + forget | Not yet |
+
+Do not use OpenMuse with sensitive production accounts yet. “Working” means covered by the current test suite, not externally audited.
+
+## How it works
+
+`Channel -> durable Task -> Planner -> typed Action -> Policy/Approval -> Tool -> typed Result`
+
+The model cannot mint approval tokens. Secret decryption happens through a host callback, not planner context. See [architecture](docs/architecture.md), [threat model](docs/threat-model.md), [product foundation](docs/product-foundation.md), and [roadmap](docs/roadmap.md).
+
+## Use a real model
+
+`OpenAICompatiblePlanner` supports OpenAI-compatible chat-completions endpoints. Set `OPENAI_API_KEY` and provide the planner to `Agent.run()`. The deterministic demo remains the recommended first run because it is free and reproducible.
 
 ## Contributing
+
 See [CONTRIBUTING.md](CONTRIBUTING.md), [governance](GOVERNANCE.md), and the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
-MIT.
 
-## Product foundation (v0.3 preview)
-OpenMuse now includes a minimal web-channel adapter, restart-safe SQLite task checkpoints, an envelope-encrypted secret vault, browser-worker domain/read-only policy, and escaped approval-page rendering. See [product foundation](docs/product-foundation.md). These pieces are deliberately separate so a model cannot directly read secrets or approve its own actions.
+MIT.
