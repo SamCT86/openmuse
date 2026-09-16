@@ -2,14 +2,27 @@
 
 [![CI](https://github.com/tahodev/openmuse/actions/workflows/ci.yml/badge.svg)](https://github.com/tahodev/openmuse/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tahodev/openmuse?quickstart=1)
 
 A local-first, auditable personal AI agent runtime. OpenMuse separates untrusted planners from typed tools, host-issued approvals, durable tasks, encrypted secrets, and redacted audit history.
 
 > Independent project. Not affiliated with or endorsed by Meta. No Meta code, branding, or assets are used.
 
-## Try it in under 5 minutes
+## See the safety boundary in 30 seconds
 
-Requires Python 3.11+ and Git.
+One simple story: the agent starts a task, pauses before one write, the user approves exactly that action, it runs, and the audit chain proves what happened.
+
+[![Play the real terminal recording](https://asciinema.org/a/Chk900SOWiRk0YwJ.svg)](https://asciinema.org/a/Chk900SOWiRk0YwJ)
+
+This is a real terminal capture. Its raw, replayable cast is also [checked into the repository](docs/assets/openmuse-demo.cast).
+
+## Run it
+
+The quickest path opens a ready Python environment and runs the demo automatically:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tahodev/openmuse?quickstart=1)
+
+Or run locally with Python 3.11+ and Git:
 
 ```bash
 git clone https://github.com/tahodev/openmuse.git
@@ -20,9 +33,23 @@ pip install -e '.[dev]'
 python examples/e2e_demo.py
 ```
 
-The deterministic demo needs no API key and exercises a web-channel message, durable SQLite task, two-step planner, workspace tools, result delivery, and hash-chained audit log.
+The deterministic demo needs no API key. It keeps the existing web-channel and durable-task flow, but makes the one sensitive write and its host-issued approval visible.
 
-![OpenMuse end-to-end demo](docs/assets/demo.svg)
+## Verify, don't trust
+
+After the demo, independently recompute every audit hash and link:
+
+```bash
+python examples/verify_audit.py
+```
+
+Expected result:
+
+```text
+VERIFIED: 3 records form an intact hash chain
+```
+
+Change any audited byte and verification fails. The verifier is intentionally small: [examples/verify_audit.py](examples/verify_audit.py) calls the public [`verify_chain`](src/openmuse/audit.py) function. The audit contains a blocked attempt, the approved action, and its execution result.
 
 ## Status
 
@@ -36,10 +63,10 @@ The deterministic demo needs no API key and exercises a web-channel message, dur
 | In-process web channel adapter | Experimental |
 | Envelope-encrypted local secret vault | Experimental |
 | Browser-worker policy envelope | Experimental |
-| Hosted chat/approval UI | Not yet |
+| Persistent task thread + approval primitives | Experimental |
 | Production browser sandbox and connectors | Not yet |
-| OTP broker and exact-total purchase flow | Not yet |
-| Provenance-aware memory + forget | Not yet |
+| Ephemeral OTP grants + exact-total validation | Working |
+| Provenance-aware memory + forget | Working |
 
 Do not use OpenMuse with sensitive production accounts yet. “Working” means covered by the current test suite, not externally audited.
 
