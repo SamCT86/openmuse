@@ -1,112 +1,41 @@
 # OpenMuse
 
-An independent, open-source personal AI agent runtime that keeps tools,
-permissions and audit history explicit.
+[![CI](https://github.com/tahodev/openmuse/actions/workflows/ci.yml/badge.svg)](https://github.com/tahodev/openmuse/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **Project status:** early MVP. OpenMuse is not affiliated with or endorsed by
-> Meta. "Muse" and related product names may be trademarks of their owners.
-> This repository uses no Meta code, branding or assets.
+A local-first, auditable personal AI agent runtime. OpenMuse is independent and is not affiliated with or endorsed by Meta. It uses no Meta code, branding, or assets.
 
-## Why
+## What works now
+- provider-neutral, budgeted multi-step planner loop
+- typed actions and results with duplicate-safe tool registry
+- read/write/represent/money risk classes
+- host-issued, expiring, one-time approvals bound to exact action arguments
+- hash-chained, redacted, permission-restricted audit log
+- workspace-contained file tools and public-network-only HTTP fetch
+- OpenAI-compatible planner adapter
 
-Personal agents should be inspectable. OpenMuse provides a small foundation for
-turning a goal into a tool call without hiding the important boundaries:
-
-- **Local-first runtime:** files and audit logs stay in a workspace you choose.
-- **Provider-neutral core:** connect any model by implementing the `planner`
-  callback. No model SDK is required by the runtime.
-- **Capability-based tools:** each tool declares its name, purpose and risk.
-- **Approval gates:** reads run by default; writes require opt-in; representation
-  and money actions require explicit, per-action approval.
-- **Append-only audit log:** completed, blocked and failed actions are recorded
-  as JSON Lines.
-- **Safe starter tools:** workspace-scoped file read/write and bounded HTTP(S)
-  fetch.
-
-## Quick start
-
+## 60-second demo
 ```bash
-git clone https://github.com/tahodev/openmuse.git
-cd openmuse
-python -m venv .venv
-source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
-
 openmuse read_file --args '{"path":"README.md"}'
-openmuse write_file --args '{"path":"notes/idea.md","content":"hello"}'
-# BLOCKED until writes are enabled for this run:
-openmuse write_file --allow-writes \
-  --args '{"path":"notes/idea.md","content":"hello"}'
-
+openmuse write_file --args '{"path":"plan.md","content":"hello"}' # blocked
+openmuse write_file --allow-writes --args '{"path":"plan.md","content":"hello"}'
 pytest
 ```
-
-Actions are written to `.openmuse/audit.jsonl` in the selected workspace.
-
-## Use with a model
-
-A planner receives the goal and the available tool catalogue, then returns one
-`Action`. This keeps model integration outside the trusted execution core.
-
-```python
-from pathlib import Path
-from openmuse.core import Action, Agent
-from openmuse.policy import Policy
-from openmuse.tools import ReadFile
-
-agent = Agent([ReadFile()], Policy(), Path(".openmuse/audit.jsonl"))
-
-def planner(goal, tools):
-    # Replace with your model call and validate its structured output.
-    return Action("read_file", '{"path":"README.md"}')
-
-print(agent.run("Summarize the README", planner))
-```
+Actions are recorded in `.openmuse/audit.jsonl`. Run `PYTHONPATH=src python examples/local_planner.py` for a complete planner-to-tool example.
 
 ## Architecture
+`Goal -> Planner -> typed Action -> Policy/Approval -> Tool -> typed Result`, with redacted audit metadata at the trusted executor boundary. See [architecture](docs/architecture.md), [threat model](docs/threat-model.md), and [roadmap](docs/roadmap.md).
 
-```text
-Goal -> planner adapter -> typed Action -> Policy -> Tool -> Result
-                                  |           |
-                                  +---- audit-+
-```
+## Direction
+OpenMuse starts with a narrow privacy-first wedge: local files, then read-only mail and calendar. Durable jobs, provenance-aware memory, least-privilege connectors, isolated workers, and an out-of-model approval UI are planned before broad autonomy. Connector manifests will be versioned and may expose MCP compatibility without weakening OpenMuse risk metadata.
 
-The core does not receive credentials. Future connectors should use narrowly
-scoped tokens and secret stores, never model-visible plaintext.
-
-## MVP scope
-
-Included now:
-
-- synchronous one-action execution
-- tool registry and provider-neutral planner interface
-- four risk classes: `read`, `write`, `represent`, `money`
-- workspace path containment
-- JSONL audit trail
-- dependency-free CLI and tests
-
-Planned next:
-
-1. multi-step plans with budgets, cancellation and resumable jobs
-2. encrypted connector credentials and OAuth adapters
-3. isolated tool workers with network allowlists
-4. human approval UI with action diffs
-5. memory with provenance, retention controls and a forget command
-6. connectors for mail, calendar and browser automation
-7. threat-model document and prompt-injection test suite
-
-## Security model
-
-OpenMuse treats tool output, webpages and messages as untrusted data. The MVP
-blocks writes by default and confines file tools to one workspace. It is not yet
-safe for unattended production use. Do not give it broad account credentials.
-See [SECURITY.md](SECURITY.md) for reporting and current limits.
+## Safety
+The runtime is alpha software, not safe for sensitive unattended work. Webpages, messages, documents, and tool output are untrusted. Do not give it broad credentials. See [SECURITY.md](SECURITY.md).
 
 ## Contributing
-
-Small, testable changes are welcome. Open an issue before adding a connector or
-changing the permission model. Run `pytest` before submitting a pull request.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [governance](GOVERNANCE.md), and the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
-
-MIT. See [LICENSE](LICENSE).
+MIT.
