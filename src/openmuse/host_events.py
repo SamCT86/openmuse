@@ -31,3 +31,27 @@ class HostEventVerifier:
     def _message(event_id: str, timestamp: int, payload: dict[str, object]) -> bytes:
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return f"{event_id}.{timestamp}.{canonical}".encode()
+
+
+@dataclass(frozen=True)
+class HostDecisionEndpoint:
+    """Framework-neutral POST endpoint; the host supplies headers and raw body."""
+
+    verifier: HostEventVerifier
+
+    def post(self, headers: dict[str, str], body: bytes) -> dict[str, object]:
+        payload = json.loads(body)
+        if not isinstance(payload, dict):
+            raise TypeError("host event payload must be an object")
+        event_id = headers["x-openmuse-event-id"]
+        timestamp = int(headers["x-openmuse-timestamp"])
+        signature = headers["x-openmuse-signature"]
+        self.verifier.verify(event_id, timestamp, payload, signature)
+        if payload.get("decision") not in {"approve", "deny"} or not payload.get("action_id"):
+            raise ValueError("invalid decision event")
+        return {
+            "accepted": True,
+            "event_id": event_id,
+            "action_id": payload["action_id"],
+            "decision": payload["decision"],
+        }
