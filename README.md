@@ -39,3 +39,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md), [governance](GOVERNANCE.md), and the [co
 
 ## License
 MIT.
+
+## Product foundation (v0.3 preview)
+OpenMuse now includes a minimal web-channel adapter, restart-safe SQLite task checkpoints, an envelope-encrypted secret vault, browser-worker domain/read-only policy, and escaped approval-page rendering. See [product foundation](docs/product-foundation.md). These pieces are deliberately separate so a model cannot directly read secrets or approve its own actions.
