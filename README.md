@@ -12,7 +12,7 @@ A local-first, auditable personal AI agent runtime. OpenMuse separates untrusted
 
 One simple story: the agent starts a task, pauses before one write, the user approves exactly that action, it runs, and the audit chain proves what happened.
 
-[![Play the real terminal recording](https://asciinema.org/a/Chk900SOWiRk0YwJ.svg)](https://asciinema.org/a/Chk900SOWiRk0YwJ)
+[![Play the real terminal recording](https://asciinema.org/a/efM8PPkZJL5zEYXG.svg)](https://asciinema.org/a/efM8PPkZJL5zEYXG)
 
 This is a real terminal capture. Its raw, replayable cast is also [checked into the repository](docs/assets/openmuse-demo.cast).
 
