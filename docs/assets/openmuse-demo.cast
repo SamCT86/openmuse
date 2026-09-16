@@ -1,0 +1,8 @@
+{"version": 2, "width": 80, "height": 24, "timestamp": 1789533532, "env": {"SHELL": "/bin/bash", "TERM": "xterm"}}
+[0.006675, "o", "$ python3 examples/e2e_demo.py --auto-approve\r\n"]
+[0.080508, "o", "1  Agent runs task: read inbox and draft launch plan\r\n"]
+[0.081418, "o", "2  PAUSED before sensitive action: write plan.md\r\n3  User approves exactly this write, once\r\n"]
+[0.08324, "o", "4  Action runs; task completes\r\n5  Audit proof saved: .openmuse-demo/audit.jsonl"]
+[0.083268, "o", "\r\n   Verify it: python examples/verify_audit.py\r\n"]
+[1.094965, "o", "\r\n$ python3 examples/verify_audit.py\r\n"]
+[1.125173, "o", "VERIFIED: 3 records form an intact hash chain\r\n"]
