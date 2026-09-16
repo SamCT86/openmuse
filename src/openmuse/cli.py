@@ -1,36 +1,9 @@
-"""Command line interface for the deterministic MVP runtime."""
-from __future__ import annotations
-
-import argparse
-import json
+import argparse,json
 from pathlib import Path
-
-from .core import Action, Agent
+from .core import Agent
+from .models import Action
 from .policy import Policy
-from .tools import FetchURL, ReadFile, WriteFile
-
-
-def parser() -> argparse.ArgumentParser:
-    value = argparse.ArgumentParser(prog="openmuse")
-    value.add_argument("tool", choices=["read_file", "write_file", "fetch_url"])
-    value.add_argument("--args", default="{}", help="JSON object passed to the tool")
-    value.add_argument("--workspace", type=Path, default=Path.cwd())
-    value.add_argument("--allow-writes", action="store_true")
-    value.add_argument("--approve", action="store_true", help="approve a high-impact action")
-    return value
-
-
-def main() -> None:
-    args = parser().parse_args()
-    workspace = args.workspace.resolve()
-    agent = Agent(
-        [ReadFile(workspace=workspace), WriteFile(workspace=workspace), FetchURL()],
-        Policy(allow_writes=args.allow_writes),
-        workspace / ".openmuse" / "audit.jsonl",
-    )
-    action = Action(args.tool, json.dumps(json.loads(args.args)), "approved" if args.approve else None)
-    print(agent.execute(action))
-
-
-if __name__ == "__main__":
-    main()
+from .tools import FetchURL,ReadFile,WriteFile
+def main():
+ p=argparse.ArgumentParser(prog="openmuse");p.add_argument("tool",choices=["read_file","write_file","fetch_url"]);p.add_argument("--args",default="{}");p.add_argument("--workspace",type=Path,default=Path.cwd());p.add_argument("--allow-writes",action="store_true");a=p.parse_args();w=a.workspace.resolve();r=Agent([ReadFile(w),WriteFile(w),FetchURL()],Policy(a.allow_writes),w/".openmuse/audit.jsonl").execute(Action(a.tool,json.loads(a.args)));print(r.output);raise SystemExit(0 if r.status.value=="completed" else 2)
+if __name__=="__main__":main()
