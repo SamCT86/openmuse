@@ -1,60 +1,29 @@
-"""Provider-neutral agent loop with an append-only audit log."""
-from __future__ import annotations
-
-import json
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+import hashlib
+from datetime import datetime,timezone
 from pathlib import Path
-from typing import Callable, Iterable
-
+from typing import Protocol
+from .audit import AuditLog
+from .models import Action,ActionStatus,ToolResult
 from .policy import Policy
-from .tools import Tool, parse_args
-
-
-@dataclass(frozen=True)
-class Action:
-    tool: str
-    arguments: str = "{}"
-    approval: str | None = None
-
-
+from .registry import ToolRegistry
+class Planner(Protocol):
+    def plan(self,goal:str,tools:list[dict],history:list[ToolResult])->Action|None:...
 class Agent:
-    def __init__(self, tools: Iterable[Tool], policy: Policy, audit_log: Path) -> None:
-        self.tools = {tool.name: tool for tool in tools}
-        self.policy = policy
-        self.audit_log = audit_log
-
-    def execute(self, action: Action) -> str:
-        tool = self.tools.get(action.tool)
-        if tool is None:
-            raise KeyError(f"unknown tool: {action.tool}")
-        decision = self.policy.check(tool.risk, action.approval)
-        if not decision.allowed:
-            self._audit(action, "blocked", decision.reason)
-            return f"BLOCKED: {decision.reason}"
-        try:
-            result = tool.run(**parse_args(action.arguments))
-        except Exception as exc:
-            self._audit(action, "error", f"{type(exc).__name__}: {exc}")
-            raise
-        self._audit(action, "completed", result[:500])
-        return result
-
-    def run(self, goal: str, planner: Callable[[str, list[dict[str, str]]], Action]) -> str:
-        """Ask a model-backed planner for one action, then execute it safely."""
-        catalogue = [
-            {"name": t.name, "description": t.description, "risk": t.risk.value}
-            for t in self.tools.values()
-        ]
-        return self.execute(planner(goal, catalogue))
-
-    def _audit(self, action: Action, status: str, detail: str) -> None:
-        self.audit_log.parent.mkdir(parents=True, exist_ok=True)
-        record = {
-            "at": datetime.now(timezone.utc).isoformat(),
-            "action": asdict(action),
-            "status": status,
-            "detail": detail,
-        }
-        with self.audit_log.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    def __init__(self,tools,policy:Policy,audit_log:Path):self.registry=ToolRegistry(tools);self.policy=policy;self.audit=AuditLog(audit_log)
+    def execute(self,action:Action)->ToolResult:
+        tool=self.registry.get(action.tool)
+        if not tool:return ToolResult(action.id,ActionStatus.FAILED,error_code="unknown_tool")
+        d=self.policy.check(tool.risk,action)
+        if not d.allowed:r=ToolResult(action.id,ActionStatus.BLOCKED,d.reason,"approval_required")
+        else:
+            try:r=ToolResult(action.id,ActionStatus.COMPLETED,str(tool.run(**dict(action.arguments))))
+            except Exception as e:r=ToolResult(action.id,ActionStatus.FAILED,str(e),type(e).__name__,False)
+        self.audit.append({"at":datetime.now(timezone.utc).isoformat(),"action":{"id":action.id,"tool":action.tool,"arguments":action.arguments},"status":r.status.value,"error_code":r.error_code,"output_sha256":hashlib.sha256(r.output.encode()).hexdigest()});return r
+    def run(self,goal:str,planner:Planner,max_steps=8):
+        history=[]
+        for _ in range(max_steps):
+            action=planner.plan(goal,self.registry.catalogue(),history)
+            if action is None:break
+            result=self.execute(action);history.append(result)
+            if result.status in {ActionStatus.BLOCKED,ActionStatus.FAILED}:break
+        return history
