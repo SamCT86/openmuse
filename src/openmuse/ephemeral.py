@@ -19,3 +19,14 @@ class EphemeralBroker:
         if bound != purpose or expires < time.time():
             raise ValueError("ephemeral grant invalid or expired")
         return value
+
+
+@dataclass(frozen=True)
+class CredentialUseGrant:
+    credential_handle: str
+    operation: str
+    origin: str
+    expires_at: float
+
+    def permits(self, operation: str, origin: str) -> bool:
+        return self.operation == operation and self.origin == origin and self.expires_at >= time.time()
