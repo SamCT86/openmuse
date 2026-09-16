@@ -1,0 +1,6 @@
+{
+  "name": "OpenMuse demo",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "pip install -e '.[dev]'",
+  "postStartCommand": "python examples/e2e_demo.py --auto-approve && python examples/verify_audit.py"
+}
