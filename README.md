@@ -6,6 +6,25 @@
 
 A local-first, auditable personal AI agent runtime. OpenMuse separates untrusted planners from typed tools, host-issued approvals, durable tasks, encrypted secrets, and redacted audit history.
 
+## Use a real model
+
+`OpenAICompatiblePlanner` supports OpenAI-compatible chat-completions endpoints. Set `OPENAI_API_KEY` and pass the planner to `Agent.run()`. This is an alpha adapter: use a test key and non-sensitive data.
+
+```python
+import os
+from pathlib import Path
+from openmuse.core import Agent
+from openmuse.policy import Policy
+from openmuse.providers import OpenAICompatiblePlanner
+from openmuse.tools import ReadFile
+
+agent = Agent([ReadFile(Path.cwd())], Policy(), Path(".openmuse/audit.jsonl"))
+planner = OpenAICompatiblePlanner(api_key=os.environ["OPENAI_API_KEY"])
+print(agent.run("Read README.md and stop", planner))
+```
+
+The deterministic demo remains the recommended first run because it is free and reproducible.
+
 **Current scope:** an alpha security-primitives runtime and reproducible demo, not a production personal assistant. Unlike [Digger's deployable OpenMuse assistant](https://github.com/diggerhq/openmuse), this project focuses on host-enforced exact-action approval and verifiable local audit trails. The Python distribution is named `openmuse-agent`.
 
 > Independent project. Not affiliated with or endorsed by Meta. No Meta code, branding, or assets are used.
@@ -77,25 +96,6 @@ Do not use OpenMuse with sensitive production accounts yet. “Working” means 
 `Channel -> durable Task -> Planner -> typed Action -> Policy/Approval -> Tool -> typed Result`
 
 The model cannot mint approval tokens. Secret decryption happens through a host callback, not planner context. See [architecture](docs/architecture.md), [threat model](docs/threat-model.md), [product foundation](docs/product-foundation.md), and [roadmap](docs/roadmap.md).
-
-## Use a real model
-
-`OpenAICompatiblePlanner` supports OpenAI-compatible chat-completions endpoints. Set `OPENAI_API_KEY` and pass the planner to `Agent.run()`. This is an alpha adapter: use a test key and non-sensitive data.
-
-```python
-import os
-from pathlib import Path
-from openmuse.core import Agent
-from openmuse.policy import Policy
-from openmuse.providers import OpenAICompatiblePlanner
-from openmuse.tools import ReadFile
-
-agent = Agent([ReadFile(Path.cwd())], Policy(), Path(".openmuse/audit.jsonl"))
-planner = OpenAICompatiblePlanner(api_key=os.environ["OPENAI_API_KEY"])
-print(agent.run("Read README.md and stop", planner))
-```
-
-The deterministic demo remains the recommended first run because it is free and reproducible.
 
 ## What OpenMuse is and is not
 
