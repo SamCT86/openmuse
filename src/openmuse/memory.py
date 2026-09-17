@@ -9,6 +9,7 @@ unless it reconciles with the chain.
 
 import hashlib
 import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -68,6 +69,45 @@ class MemoryStore:
     def explain(self, memory_id):
         return next(x for x in self._load() if x.id == memory_id)
 
+    def search(self, query: str, limit: int = 10, tiers: set[MemoryTier] | None = None) -> list[Memory]:
+        """Rank non-deleted memories with a small, deterministic local text index."""
+        terms = _terms(query)
+        if not terms or limit < 1:
+            return []
+        allowed = {tier.value for tier in tiers} if tiers else None
+        ranked: list[tuple[int, float, str, Memory]] = []
+        for item in self._load():
+            if item.deleted or (allowed is not None and item.tier not in allowed):
+                continue
+            fact_terms = _terms(item.fact)
+            source_terms = _terms(item.source)
+            score = sum(3 for term in terms if term in fact_terms) + sum(1 for term in terms if term in source_terms)
+            if score:
+                ranked.append((score, item.confidence, item.observed_at, item))
+        ranked.sort(key=lambda row: (row[0], row[1], row[2], row[3].id), reverse=True)
+        return [row[3] for row in ranked[:limit]]
+
+    def update(self, memory_id: str, fact: str, source: str, observed_at: str, confidence: float = 1.0) -> Memory:
+        """Replace a memory with new provenance and chain the new content digest."""
+        items = self._load()
+        item = next(x for x in items if x.id == memory_id)
+        if item.deleted:
+            raise ValueError("deleted memory cannot be updated")
+        item.fact, item.source = fact, source
+        item.observed_at, item.confidence = observed_at, confidence
+        self._save(items)
+        self._log(
+            {
+                "event": "memory_update",
+                "memory_id": item.id,
+                "tier": item.tier,
+                "source": item.source,
+                "observed_at": item.observed_at,
+                "fact_sha256": _hash(item.fact),
+            }
+        )
+        return item
+
     def forget(self, memory_id):
         items = self._load()
         item = next(x for x in items if x.id == memory_id)
@@ -88,6 +128,10 @@ class MemoryStore:
     def _save(self, items):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps([asdict(x) for x in items]))
+
+
+def _terms(text: str) -> set[str]:
+    return set(re.findall(r"[\w-]+", text.casefold()))
 
 
 def _hash(fact: str) -> str:
@@ -112,6 +156,14 @@ def verify_memory(memory_path: Path, audit_path: Path) -> tuple[bool, list[str]]
         event = record.get("event")
         if event == "memory_write":
             writes[record["memory_id"]] = record
+        elif event == "memory_update":
+            if record["memory_id"] in writes:
+                writes[record["memory_id"]].update(
+                    fact_sha256=record["fact_sha256"],
+                    source=record["source"],
+                    observed_at=record["observed_at"],
+                    tier=record["tier"],
+                )
         elif event == "memory_promote":
             if record["memory_id"] in writes:
                 writes[record["memory_id"]]["tier"] = record["tier"]
@@ -128,8 +180,13 @@ def verify_memory(memory_path: Path, audit_path: Path) -> tuple[bool, list[str]]
         if item.deleted:
             if memory_id not in forgets:
                 violations.append(f"{memory_id}: tombstone without chained forget")
-        elif _hash(item.fact) != write["fact_sha256"] or item.tier != write["tier"]:
-            violations.append(f"{memory_id}: content drifted from chained write")
+        elif (
+            _hash(item.fact) != write["fact_sha256"]
+            or item.tier != write["tier"]
+            or item.source != write["source"]
+            or item.observed_at != write["observed_at"]
+        ):
+            violations.append(f"{memory_id}: content or provenance drifted from chained write")
     for memory_id in forgets - set(items):
         violations.append(f"{memory_id}: chained forget but item is gone")
     return (not violations, violations)

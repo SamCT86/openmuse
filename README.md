@@ -89,7 +89,7 @@ Change any audited byte and verification fails. The verifier is intentionally sm
 | Production OAuth connectors | Not yet |
 | OS-isolated browser worker | Not yet |
 | Ephemeral OTP grants + exact-total validation | Working |
-| Provenance-aware memory + forget | Working |
+| Searchable, tiered, provenance-verifiable memory + edit/forget | Working |
 
 Do not use OpenMuse with sensitive production accounts yet. “Working” means covered by the current test suite, not externally audited.
 

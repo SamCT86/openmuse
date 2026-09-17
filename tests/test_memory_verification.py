@@ -4,6 +4,8 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+import pytest
+
 from openmuse.audit import AuditLog, verify_chain
 from openmuse.memory import Memory, MemoryStore, MemoryTier, verify_memory
 
@@ -93,3 +95,53 @@ def test_store_without_audit_still_works(tmp_path: Path):
     assert store.explain(item.id).fact == "likes tea"
     verified, violations = verify_memory(tmp_path / "memory.json", tmp_path / "missing.jsonl")
     assert not verified and violations
+
+
+def test_search_ranks_fact_matches_and_filters_tiers(tmp_path: Path):
+    store = make_store(tmp_path)
+    store.remember("likes green tea", "chat:tea", "2026-09-16", confidence=0.8)
+    curated = store.remember(
+        "prefers tea meetings in the morning",
+        "calendar:meeting",
+        "2026-09-17",
+        confidence=1.0,
+        tier=MemoryTier.CURATED,
+    )
+    forgotten = store.remember("tea password", "untrusted", "2026-09-18")
+    store.forget(forgotten.id)
+
+    assert store.search("tea morning")[0].id == curated.id
+    assert [item.id for item in store.search("tea", tiers={MemoryTier.CURATED})] == [curated.id]
+    assert forgotten.id not in {item.id for item in store.search("tea")}
+    assert store.search("") == []
+
+
+def test_update_chains_new_content_and_provenance(tmp_path: Path):
+    store = make_store(tmp_path)
+    item = store.remember("likes tea", "chat:1", "2026-09-16")
+    updated = store.update(item.id, "likes coffee", "chat:2", "2026-09-18", confidence=0.9)
+
+    assert updated.fact == "likes coffee"
+    assert store.search("coffee")[0].source == "chat:2"
+    verified, violations = verify_memory(tmp_path / "memory.json", tmp_path / "audit.jsonl")
+    assert verified, violations
+
+
+def test_unlogged_provenance_change_is_detected(tmp_path: Path):
+    store = make_store(tmp_path)
+    item = store.remember("likes tea", "chat:1", "2026-09-16")
+    items = json.loads((tmp_path / "memory.json").read_text())
+    items[0]["source"] = "chat:evil"
+    (tmp_path / "memory.json").write_text(json.dumps(items))
+
+    verified, violations = verify_memory(tmp_path / "memory.json", tmp_path / "audit.jsonl")
+    assert not verified
+    assert any(item.id in violation and "provenance" in violation for violation in violations)
+
+
+def test_deleted_memory_cannot_be_updated(tmp_path: Path):
+    store = make_store(tmp_path)
+    item = store.remember("likes tea", "chat:1", "2026-09-16")
+    store.forget(item.id)
+    with pytest.raises(ValueError, match="deleted memory"):
+        store.update(item.id, "likes coffee", "chat:2", "2026-09-18")
