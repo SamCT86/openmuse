@@ -20,7 +20,7 @@ This is a real terminal capture. Its raw, replayable cast is also [checked into 
 
 ## Run it
 
-The quickest path opens a ready Python environment and runs the demo automatically:
+The quickest path opens a ready Python environment. In the terminal, run `python examples/e2e_demo.py` so you can inspect and approve the exact write yourself:
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tahodev/openmuse?quickstart=1)
 
