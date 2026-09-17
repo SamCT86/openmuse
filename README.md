@@ -85,7 +85,9 @@ Change any audited byte and verification fails. The verifier is intentionally sm
 | Envelope-encrypted local secret vault | Experimental |
 | Browser-worker policy envelope | Experimental |
 | Persistent task thread + approval primitives | Experimental |
-| Production browser sandbox and connectors | Not yet |
+| Credential-free read-only mail/calendar connectors | Working |
+| Production OAuth connectors | Not yet |
+| OS-isolated browser worker | Not yet |
 | Ephemeral OTP grants + exact-total validation | Working |
 | Provenance-aware memory + forget | Working |
 
@@ -101,7 +103,7 @@ The model cannot mint approval tokens. Secret decryption happens through a host 
 
 | In scope today | Not yet |
 |---|---|
-| Typed local tools, bounded loops, exact-action approval, encrypted local vault, durable tasks, audit verification | Production browser isolation, supported mail/calendar connectors, externally audited security, unattended use with sensitive accounts |
+| Typed local tools, bounded loops, exact-action approval, encrypted local vault, durable tasks, audit verification, simulated mail/calendar connectors | Production browser isolation, production OAuth connectors, externally audited security, unattended use with sensitive accounts |
 
 ## Contributing
 
