@@ -4,6 +4,8 @@ All notable changes are recorded here. OpenMuse follows semantic versioning whil
 
 ## Unreleased
 
+- Add the scheduler and subagent model: five-field cron expressions with deterministic next-fire math (standard dom/dow OR semantics, Sunday aliases) over durably stored jobs, and delegated authority where a subagent's grant must be a strict subset of its parent's - tools, use budget, expiry, and argument constraints can only narrow, with delegation events in the audit chain (#11).
+
 - Add the secrets broker: tools declare a secret by name and receive the plaintext through a scoped `run_with_secret` side channel at execution time, so raw secrets never enter action arguments, tool manifests, planner context, or the audit log; access is audited by name and secret-bearing schemas or arguments are rejected (#10).
 
 - Add the verifiable memory layer: memory gains working/curated tiers, and every remember, promote, and forget is mirrored into the hash-chained audit log; `verify_memory` reconciles state against the chain to detect out-of-band insertions, tampered facts, and unlogged tombstones (#9).
