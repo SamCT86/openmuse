@@ -80,7 +80,9 @@ class TaskStore:
             (task_id, kind, json.dumps(data), datetime.now(timezone.utc).isoformat()),
         )
         self.db.commit()
-        return int(cursor.lastrowid)
+        if cursor.lastrowid is None:
+            raise RuntimeError("failed to append task event")
+        return cursor.lastrowid
 
     def events(self, task_id: str, after: int = 0) -> list[dict[str, Any]]:
         self.db.execute(

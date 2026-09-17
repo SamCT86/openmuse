@@ -1,0 +1,12 @@
+name: Feature request
+description: Propose a focused improvement
+body:
+  - type: textarea
+    attributes: {label: Problem, description: What user problem should this solve?}
+    validations: {required: true}
+  - type: textarea
+    attributes: {label: Proposed behavior}
+    validations: {required: true}
+  - type: textarea
+    attributes: {label: Trust-boundary impact, description: Note new data, permissions, side effects, or say none.}
+    validations: {required: true}

@@ -4,3 +4,8 @@ __pycache__/
 dist/
 .openmuse/
 *.py[cod]
+.coverage
+coverage.json
+htmlcov/
+build/
+*.egg-info/

@@ -14,7 +14,7 @@ class Planner(Protocol):
 
 
 class Agent:
-    def __init__(self, tools, policy: Policy, audit_log: Path):
+    def __init__(self, tools, policy: Policy, audit_log: Path) -> None:
         self.registry = ToolRegistry(tools)
         self.policy = policy
         self.audit = AuditLog(audit_log)
@@ -42,8 +42,8 @@ class Agent:
         )
         return r
 
-    def run(self, goal: str, planner: Planner, max_steps=8):
-        history = []
+    def run(self, goal: str, planner: Planner, max_steps: int = 8) -> list[ToolResult]:
+        history: list[ToolResult] = []
         for _ in range(max_steps):
             action = planner.plan(goal, self.registry.catalogue(), history)
             if action is None:

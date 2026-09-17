@@ -6,4 +6,4 @@ Malicious webpages/messages, compromised connectors, prompt injection, a confuse
 ## Controls
 Least privilege, one-time action-bound approvals, path containment, SSRF checks, output limits, redacted audit metadata, and fail-closed policy.
 ## Known gaps
-No OS sandbox, encrypted secret store, DNS pinning, full JSON Schema validation, or human approval UI yet. Use test data only.
+No OS sandbox, OS-backed master-key storage, DNS pinning, full JSON Schema validation, or production-ready human approval UI yet. The local vault encrypts values at rest, but tools and key material still share the Python process. Use test data only.
