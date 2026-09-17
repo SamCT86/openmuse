@@ -1,6 +1,8 @@
 """One simple, deterministic OpenMuse safety story. No API key required."""
 
 import argparse
+import hashlib
+import json
 import shutil
 from pathlib import Path
 
@@ -41,12 +43,21 @@ def main() -> None:
     sensitive = Action("write_file", {"path": "plan.md", "content": f"# Plan\n\n- {source}\n"})
     blocked = agent.execute(sensitive)
     assert blocked.error_code == "approval_required"
-    print("2  PAUSED before sensitive action: write plan.md")
-    approved = "yes" if args.auto_approve else input("   Approve this one action? [y/N] ").strip().lower()
+    action_payload = {"id": sensitive.id, "tool": sensitive.tool, "arguments": sensitive.arguments}
+    action_digest = hashlib.sha256(
+        json.dumps(action_payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    content_preview = sensitive.arguments["content"].strip().replace("\n", " / ")
+    print("2  PAUSED before sensitive action")
+    print(f"   tool: {sensitive.tool}")
+    print(f"   path: {sensitive.arguments['path']}")
+    print(f"   content: {content_preview}")
+    print(f"   action sha256: {action_digest[:16]}...")
+    approved = "yes" if args.auto_approve else input("   Approve this exact action? [y/N] ").strip().lower()
     if approved not in {"y", "yes"}:
         print("   Denied. Nothing was written.")
         return
-    print("3  User approves exactly this write, once")
+    print("3  Host issues a one-time token for this action digest")
     approved_action = Action(sensitive.tool, sensitive.arguments, sensitive.id, authority.issue(sensitive))
     result = agent.execute(approved_action)
     assert result.output.startswith("wrote")
