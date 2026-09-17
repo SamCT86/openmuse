@@ -4,6 +4,8 @@ All notable changes are recorded here. OpenMuse follows semantic versioning whil
 
 ## Unreleased
 
+- Add the secrets broker: tools declare a secret by name and receive the plaintext through a scoped `run_with_secret` side channel at execution time, so raw secrets never enter action arguments, tool manifests, planner context, or the audit log; access is audited by name and secret-bearing schemas or arguments are rejected (#10).
+
 - Add the verifiable memory layer: memory gains working/curated tiers, and every remember, promote, and forget is mirrored into the hash-chained audit log; `verify_memory` reconciles state against the chain to detect out-of-band insertions, tampered facts, and unlogged tombstones (#9).
 
 - Add the scoped connector interface: capabilities declare least-privilege scopes, host-owned grants can never exceed declarations, revocation and expiry fail closed, and every call flows through exact-action policy and the audit chain (#8, closes the #4 read-only connector contract groundwork via ADR 0002).
