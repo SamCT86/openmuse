@@ -69,3 +69,15 @@ def test_scheduler_due_jobs_and_persistence(tmp_path: Path):
 def test_add_rejects_bad_schedule(tmp_path: Path):
     with pytest.raises(ValueError):
         Scheduler(tmp_path / "jobs.db").add("not cron", "x")
+
+
+def test_claim_due_is_atomic_across_workers(tmp_path: Path):
+    path = tmp_path / "jobs.db"
+    first = Scheduler(path)
+    job = first.add("* * * * *", "sweep inbox")
+    second = Scheduler(path)
+    now = at(2026, 9, 17, 12, 30)
+
+    assert [claimed.id for claimed in first.claim_due(now)] == [job.id]
+    assert second.claim_due(now) == []
+    assert [claimed.id for claimed in second.claim_due(at(2026, 9, 17, 12, 31))] == [job.id]

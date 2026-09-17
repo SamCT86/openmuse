@@ -88,17 +88,13 @@ class Scheduler:
 
     def __init__(self, path: Path) -> None:
         self.db = sqlite3.connect(path)
-        self.db.execute(
-            "CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, schedule TEXT, goal TEXT, last_run TEXT)"
-        )
+        self.db.execute("CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, schedule TEXT, goal TEXT, last_run TEXT)")
         self.db.commit()
 
     def add(self, schedule: str, goal: str) -> Job:
         CronSchedule(schedule)
         job = Job(uuid4().hex, schedule, goal, None)
-        self.db.execute(
-            "INSERT INTO jobs VALUES(?,?,?,?)", (job.id, job.schedule, job.goal, job.last_run)
-        )
+        self.db.execute("INSERT INTO jobs VALUES(?,?,?,?)", (job.id, job.schedule, job.goal, job.last_run))
         self.db.commit()
         return job
 
@@ -118,6 +114,19 @@ class Scheduler:
             if schedule.next_after(anchor) <= now:
                 ready.append(job)
         return ready
+
+    def claim_due(self, now: datetime) -> list[Job]:
+        """Atomically claim due jobs so concurrent workers cannot double-run them."""
+        self.db.execute("BEGIN IMMEDIATE")
+        try:
+            ready = self.due(now)
+            for job in ready:
+                self.db.execute("UPDATE jobs SET last_run=? WHERE id=?", (now.isoformat(), job.id))
+            self.db.commit()
+            return ready
+        except Exception:
+            self.db.rollback()
+            raise
 
     def mark_run(self, job_id: str, ran_at: datetime) -> None:
         self.db.execute("UPDATE jobs SET last_run=? WHERE id=?", (ran_at.isoformat(), job_id))

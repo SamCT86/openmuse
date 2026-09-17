@@ -84,7 +84,7 @@ Change any audited byte and verification fails. The verifier is intentionally sm
 | In-process web channel adapter | Experimental |
 | Envelope-encrypted local secret vault | Experimental |
 | Browser-worker policy envelope | Experimental |
-| Persistent task thread + approval primitives | Experimental |
+| Persistent task threads + atomic cron job claims | Working |
 | Credential-free read-only mail/calendar connectors | Working |
 | Production OAuth connectors | Not yet |
 | OS-isolated browser worker | Not yet |
