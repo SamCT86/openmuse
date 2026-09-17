@@ -31,6 +31,14 @@ class Connector(Protocol):
     def invoke(self, capability: str, arguments: Mapping[str, Any]) -> str: ...
 
 
+class ConnectorLifecycle(Protocol):
+    """Optional lifecycle hook for connectors that retain local cached data."""
+
+    name: str
+
+    def delete_cached_data(self) -> None: ...
+
+
 @dataclass(frozen=True)
 class Grant:
     scopes: frozenset[str]
@@ -60,6 +68,15 @@ class ScopeGrants:
 
     def revoke(self, connector_name: str) -> None:
         self._grants.pop(connector_name, None)
+
+    def revoke_and_delete(self, connector: ConnectorLifecycle) -> None:
+        """Revoke authority before deleting connector-owned cached data.
+
+        If deletion fails, access stays revoked and the error is surfaced so the
+        host can retry cleanup without reopening the connector boundary.
+        """
+        self.revoke(connector.name)
+        connector.delete_cached_data()
 
     def allows(self, connector_name: str, scope: str) -> bool:
         grant = self._grants.get(connector_name)

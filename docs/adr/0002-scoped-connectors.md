@@ -13,8 +13,11 @@ connectors must ride on that instead of gaining ambient access.
 - A connector declares `Capability` entries, each with a scope string and a
   risk tier. Declaration is the ceiling: no grant can exceed it.
 - `ScopeGrants` is host-owned and the only writer of permissions. Grants are
-  per-connector, optionally expiring, and revocable. Revocation is deletion:
-  the grant entry is removed and later calls fail closed.
+  per-connector, optionally expiring, and revocable. Plain `revoke()` removes
+  authority immediately. Connectors that retain local data expose the optional
+  `ConnectorLifecycle.delete_cached_data()` hook; `revoke_and_delete()` removes
+  authority before calling it. If cleanup fails, the error is surfaced while
+  access stays revoked, so the host can retry without reopening the boundary.
 - Every capability is exposed as a `ConnectorTool`, so calls flow through the
   existing policy check as exact actions (tool name `connector:capability`
   plus exact arguments) and land in the redacted hash-chained audit log,
@@ -32,3 +35,5 @@ connectors must ride on that instead of gaining ambient access.
   uses the same one-time token as `write_file`.
 - Denials are observable in the audit trail, which is the debugging and
   incident-review path.
+- Revocation and local-data deletion are separate, ordered lifecycle events:
+  revocation is always first and cannot be rolled back by a cleanup failure.

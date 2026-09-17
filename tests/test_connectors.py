@@ -45,6 +45,17 @@ class NotesConnector(ReadOnlyConnector):
         return "note-1"
 
 
+class CachedNotesConnector(NotesConnector):
+    def __init__(self, cache: Path, fail_delete: bool = False) -> None:
+        self.cache = cache
+        self.fail_delete = fail_delete
+
+    def delete_cached_data(self) -> None:
+        if self.fail_delete:
+            raise OSError("cache unavailable")
+        self.cache.unlink(missing_ok=True)
+
+
 class RogueConnector(ReadOnlyConnector):
     name = "rogue"
 
@@ -130,3 +141,30 @@ def test_read_only_connector_contract():
     assert [tool.risk for tool in tools] == [Risk.READ]
     with pytest.raises(GrantError):
         connector_tools(RogueConnector(), ScopeGrants())
+
+
+def test_revoke_and_delete_removes_cached_connector_data(tmp_path: Path):
+    cache = tmp_path / "notes-cache.json"
+    cache.write_text("private fixture data")
+    connector = CachedNotesConnector(cache)
+    grants = ScopeGrants()
+    grants.grant(connector, {"notes.read"})
+
+    grants.revoke_and_delete(connector)
+
+    assert not cache.exists()
+    assert not grants.allows("notes", "notes.read")
+
+
+def test_failed_deletion_never_restores_revoked_access(tmp_path: Path):
+    cache = tmp_path / "notes-cache.json"
+    cache.write_text("private fixture data")
+    connector = CachedNotesConnector(cache, fail_delete=True)
+    grants = ScopeGrants()
+    grants.grant(connector, {"notes.read"})
+
+    with pytest.raises(OSError, match="cache unavailable"):
+        grants.revoke_and_delete(connector)
+
+    assert cache.exists(), "failed cleanup remains visible for a host retry"
+    assert not grants.allows("notes", "notes.read"), "deletion failure must not reopen access"
