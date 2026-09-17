@@ -1,12 +1,13 @@
 """Tool protocol plus workspace-safe file tools and SSRF-resistant fetch."""
 
+import http.client
 import ipaddress
 import socket
+import ssl
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .policy import Risk
 
@@ -77,9 +78,47 @@ class WriteFile(ManifestMixin):
         return f"wrote {target.relative_to(self.workspace.resolve())}"
 
 
-class NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, *args, **kwargs):
-        return None
+def _public_addresses(host: str, port: int) -> list[str]:
+    """Resolve once and reject the whole destination if any answer is non-public."""
+    addresses = list(dict.fromkeys(str(info[4][0]) for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)))
+    if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+        raise ValueError("private or special-use network blocked")
+    return addresses
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    """Connect to a validated address instead of resolving the hostname again."""
+
+    def __init__(self, host: str, port: int, address: str, timeout: float) -> None:
+        super().__init__(host, port, timeout=timeout)
+        self._address = address
+
+    def connect(self) -> None:
+        self.sock = socket.create_connection((self._address, self.port), self.timeout)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """Pin the TCP peer while retaining hostname certificate verification and SNI."""
+
+    def __init__(self, host: str, port: int, address: str, timeout: float) -> None:
+        self._tls_context = ssl.create_default_context()
+        super().__init__(host, port, timeout=timeout, context=self._tls_context)
+        self._address = address
+
+    def connect(self) -> None:
+        sock = socket.create_connection((self._address, self.port), self.timeout)
+        self.sock = self._tls_context.wrap_socket(sock, server_hostname=self.host)
+
+
+def _fetch_pinned(scheme: str, host: str, port: int, address: str, target: str) -> tuple[int, bytes]:
+    connection_type = _PinnedHTTPSConnection if scheme == "https" else _PinnedHTTPConnection
+    connection = connection_type(host, port, address, timeout=15)
+    try:
+        connection.request("GET", target, headers={"Host": host, "User-Agent": "OpenMuse/0.2"})
+        response = connection.getresponse()
+        return response.status, response.read(200_001)
+    finally:
+        connection.close()
 
 
 @dataclass
@@ -93,13 +132,28 @@ class FetchURL(ManifestMixin):
         self.schema = {"type": "object", "required": ["url"], "properties": {"url": {"type": "string"}}}
 
     def run(self, url: str, **_: Any) -> str:
-        p = urlsplit(url)
-        if p.scheme not in {"http", "https"} or not p.hostname or p.username:
+        parsed = urlsplit(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
             raise ValueError("invalid public URL")
-        if p.port not in {None, 80, 443}:
+        if parsed.port not in {None, 80, 443}:
             raise ValueError("nonstandard port blocked")
-        for info in socket.getaddrinfo(p.hostname, p.port or (443 if p.scheme == "https" else 80)):
-            if not ipaddress.ip_address(info[4][0]).is_global:
-                raise ValueError("private or special-use network blocked")
-        with build_opener(NoRedirect).open(Request(url, headers={"User-Agent": "OpenMuse/0.2"}), timeout=15) as r:
-            return r.read(200_001)[:200_000].decode("utf-8", errors="replace")
+        host = parsed.hostname.encode("idna").decode("ascii")
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        addresses = _public_addresses(host, port)
+        target = parsed.path or "/"
+        if parsed.query:
+            target += "?" + parsed.query
+
+        last_error: OSError | None = None
+        for address in addresses:
+            try:
+                status, body = _fetch_pinned(parsed.scheme, host, port, address, target)
+            except OSError as exc:
+                last_error = exc
+                continue
+            if 300 <= status < 400:
+                raise ValueError("redirects are blocked")
+            if status < 200 or status >= 300:
+                raise ValueError(f"HTTP status {status}")
+            return body[:200_000].decode("utf-8", errors="replace")
+        raise OSError("all validated destination addresses failed") from last_error
