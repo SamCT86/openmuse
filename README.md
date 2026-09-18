@@ -86,7 +86,8 @@ Change any audited byte and verification fails. The verifier is intentionally sm
 | Browser-worker policy envelope | Experimental |
 | Persistent task threads + atomic cron job claims | Working |
 | Credential-free read-only mail/calendar connectors | Working |
-| Production OAuth connectors | Not yet |
+| Production-capable read-only Google Calendar connector | Working |
+| Managed OAuth login/refresh and production mail connector | Not yet |
 | Resource-limited OS process worker | Working |
 | Kernel/network-isolated browser worker | Not yet |
 | Ephemeral OTP grants + exact-total validation | Working |
