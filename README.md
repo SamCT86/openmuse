@@ -87,7 +87,8 @@ Change any audited byte and verification fails. The verifier is intentionally sm
 | Persistent task threads + atomic cron job claims | Working |
 | Credential-free read-only mail/calendar connectors | Working |
 | Production OAuth connectors | Not yet |
-| OS-isolated browser worker | Not yet |
+| Resource-limited OS process worker | Working |
+| Kernel/network-isolated browser worker | Not yet |
 | Ephemeral OTP grants + exact-total validation | Working |
 | Searchable, tiered, provenance-verifiable memory + edit/forget | Working |
 
