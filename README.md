@@ -86,8 +86,8 @@ Change any audited byte and verification fails. The verifier is intentionally sm
 | Browser-worker policy envelope | Experimental |
 | Persistent task threads + atomic cron job claims | Working |
 | Credential-free read-only mail/calendar connectors | Working |
-| Production-capable read-only Google Calendar connector | Working |
-| Managed OAuth login/refresh and production mail connector | Not yet |
+| Production-capable read-only Google Calendar and Gmail connectors | Working |
+| Managed Google OAuth code exchange, refresh, encrypted storage, and OS-keyring master key | Working |
 | Resource-limited OS process worker | Working |
 | Kernel/network-isolated browser worker | Not yet |
 | Ephemeral OTP grants + exact-total validation | Working |
@@ -105,7 +105,7 @@ The model cannot mint approval tokens. Secret decryption happens through a host 
 
 | In scope today | Not yet |
 |---|---|
-| Typed local tools, bounded loops, exact-action approval, encrypted local vault, durable tasks, audit verification, simulated mail/calendar connectors | Production browser isolation, production OAuth connectors, independent security review, unattended use with sensitive accounts |
+| Typed local tools, bounded loops, exact-action approval, encrypted local vault, durable tasks, audit verification, simulated mail/calendar connectors | Production browser isolation, independently deployed OAuth callback, independent security review, unattended use with sensitive accounts |
 
 ## Contributing
 

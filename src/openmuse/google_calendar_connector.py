@@ -10,6 +10,7 @@ from .connectors import Capability, ReadOnlyConnector
 from .policy import Risk
 
 CalendarTransport = Callable[[str, Mapping[str, str]], dict[str, Any]]
+GOOGLE_CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
 
 
 def _https_json(url: str, headers: Mapping[str, str]) -> dict[str, Any]:
@@ -101,6 +102,8 @@ class GoogleCalendarConnector(ReadOnlyConnector):
         items = payload.get("items", [])
         if not isinstance(items, list):
             raise TypeError("calendar items must be an array")
+        if len(items) > maximum:
+            raise ValueError("calendar response exceeded requested result bound")
         return json.dumps(items, ensure_ascii=False, sort_keys=True)
 
     def delete_cached_data(self) -> None:

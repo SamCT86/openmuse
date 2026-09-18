@@ -9,4 +9,7 @@ Trust boundaries: planner output and all external content are untrusted; policy,
 
 
 ## Production connector boundary
-`GoogleCalendarConnector` is the first live-service connector: a read-only Calendar API v3 adapter with an exact `calendar.read` grant, bounded event results, fixed Google API origin, runtime-only OAuth token callback, audit/policy wiring through `ConnectorTool`, and fail-closed revocation. The host still owns browser OAuth login, refresh, and durable token storage.
+`GoogleCalendarConnector` and `GoogleMailConnector` are read-only Google API adapters with exact grants, bounded results, fixed provider origins, runtime-only OAuth token callbacks, audit/policy wiring through `ConnectorTool`, and fail-closed revocation. `GoogleOAuthManager` builds the consent URL, exchanges authorization codes, refreshes expiring access tokens, validates scopes, and stores tokens in the encrypted vault. The embedding host still owns the loopback/web callback that verifies OAuth state and supplies the returned code.
+
+
+The production composition is `SecretVault.open(path, KeyringMasterKey())`, then one `GoogleOAuthManager` per Google account/provider-scope set. Pass `manager.access_token` to a Google connector. The master key stays in the platform credential store; the vault file contains only envelope-encrypted records and is written with owner-only permissions. A missing system credential backend is an error, never a plaintext fallback. OAuth `state` verification and the redirect listener remain embedding-host responsibilities.

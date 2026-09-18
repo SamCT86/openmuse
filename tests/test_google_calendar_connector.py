@@ -44,5 +44,8 @@ def test_calendar_bounds_and_provider_shapes_fail_closed():
         connector.invoke("list_events", {"max_results": 251})
     with pytest.raises(TypeError, match="array"):
         connector.invoke("list_events", {})
+    oversized = GoogleCalendarConnector(lambda: "token", transport=Mock(return_value={"items": [{}, {}]}))
+    with pytest.raises(ValueError, match="exceeded"):
+        oversized.invoke("list_events", {"max_results": 1})
     with pytest.raises(ValueError, match="unknown capability"):
         connector.invoke("delete_event", {})
