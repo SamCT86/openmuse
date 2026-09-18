@@ -105,7 +105,7 @@ The model cannot mint approval tokens. Secret decryption happens through a host 
 
 | In scope today | Not yet |
 |---|---|
-| Typed local tools, bounded loops, exact-action approval, encrypted local vault, durable tasks, audit verification, simulated mail/calendar connectors | Production browser isolation, production OAuth connectors, externally audited security, unattended use with sensitive accounts |
+| Typed local tools, bounded loops, exact-action approval, encrypted local vault, durable tasks, audit verification, simulated mail/calendar connectors | Production browser isolation, production OAuth connectors, independent security review, unattended use with sensitive accounts |
 
 ## Contributing
 
