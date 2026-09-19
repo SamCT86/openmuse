@@ -4,16 +4,32 @@ All notable changes are recorded here. OpenMuse follows semantic versioning whil
 
 ## Unreleased
 
-- Add the scheduler and subagent model: five-field cron expressions with deterministic next-fire math (standard dom/dow OR semantics, Sunday aliases) over durably stored jobs, and delegated authority where a subagent's grant must be a strict subset of its parent's - tools, use budget, expiry, and argument constraints can only narrow, with delegation events in the audit chain (#11).
+## v0.3.0-alpha - 2026-09-19
 
-- Add the secrets broker: tools declare a secret by name and receive the plaintext through a scoped `run_with_secret` side channel at execution time, so raw secrets never enter action arguments, tool manifests, planner context, or the audit log; access is audited by name and secret-bearing schemas or arguments are rejected (#10).
+### Added
 
-- Add the verifiable memory layer: memory gains working/curated tiers, and every remember, promote, and forget is mirrored into the hash-chained audit log; `verify_memory` reconciles state against the chain to detect out-of-band insertions, tampered facts, and unlogged tombstones (#9).
+- Managed Google OAuth with authorization-code exchange, automatic refresh, encrypted token storage, and OS-keyring-backed master keys.
+- Read-only Gmail and Google Calendar connectors built on scoped, least-privilege grants, plus credential-free local simulation connectors.
+- Searchable and editable working/curated memory with hash-chained remember, promote, edit, and forget events, plus state verification against the audit chain.
+- Five-field cron scheduling with atomic job claims across workers, and subagent grants that can only narrow tools, budgets, expiry, and argument constraints.
+- A secrets broker that passes named secrets to tools through a scoped execution side channel without exposing plaintext to planner context, manifests, action arguments, or audit logs.
+- A fresh-process isolated worker with bounded runtime, memory, file descriptors, output, environment, and workspace.
+- An independent security-review packet with a reviewer brief and checklist.
 
-- Add the scoped connector interface: capabilities declare least-privilege scopes, host-owned grants can never exceed declarations, revocation and expiry fail closed, and every call flows through exact-action policy and the audit chain (#8, closes the #4 read-only connector contract groundwork via ADR 0002).
+### Changed
 
-- Fix approval verification race: one-time token consumption is now atomic under a lock, so concurrent `verify` calls cannot consume one approval twice (#7).
-- Define the approval expiry boundary: a token is expired when `now >= exp`; the exact expiry second is rejected, with boundary tests (#7).
+- The approval demo now shows the exact tool, path, content preview, and SHA-256 being approved, then verifies that the approved action is the action executed.
+- Connector revocation now clears cached clients and fails closed if cleanup does not complete.
+- Tool arguments are validated before approval, policy checks, and execution.
+- `FetchURL` now resolves once and pins connections to validated public addresses to prevent DNS-rebinding bypasses.
+- Project metadata and runtime version are aligned for this prerelease.
 
-- Align project metadata and runtime version.
-- Tighten onboarding, security limits, CI, packaging, and contribution guidance.
+### Fixed
+
+- Approval tokens are consumed atomically, preventing concurrent verification from using one approval twice.
+- Approval expiry now rejects tokens at the exact expiry boundary (`now >= exp`).
+- Scheduled jobs are claimed transactionally so parallel workers cannot run the same job twice.
+
+### Known limitations
+
+- OpenMuse remains alpha software for test accounts and non-sensitive data. Documentation drift in the security limits is being cleaned up separately.
