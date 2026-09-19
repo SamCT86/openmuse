@@ -127,7 +127,7 @@ Change any audited byte and verification fails. The verifier is intentionally sm
 | Credential-free read-only mail/calendar connectors | Working |
 | Production-capable read-only Google Calendar and Gmail connectors | Working |
 | Managed Google OAuth code exchange, refresh, encrypted storage, and OS-keyring master key | Working |
-| Resource-limited OS process worker | Working |
+| [Resource-limited OS process worker](docs/isolated-worker.md) | Working |
 | Kernel/network-isolated browser worker | Not yet |
 | Ephemeral OTP grants + exact-total validation | Working |
 | Searchable, tiered, provenance-verifiable memory + edit/forget | Working |
