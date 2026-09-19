@@ -17,4 +17,5 @@ jobs:
       - run: python -m build
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with: {name: dist, path: dist/}
-      # Publishing is intentionally disabled until the maintainer configures a PyPI trusted publisher.
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
