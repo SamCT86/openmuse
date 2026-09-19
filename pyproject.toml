@@ -3,7 +3,7 @@ requires=["hatchling"]
 build-backend="hatchling.build"
 [project]
 name="openmuse-agent"
-version="0.2.0"
+version="0.3.0a0"
 description="A local-first, auditable personal AI agent runtime"
 readme="README.md"
 requires-python=">=3.11"
