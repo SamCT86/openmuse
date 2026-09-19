@@ -6,6 +6,53 @@
 
 A local-first, auditable personal AI agent runtime. OpenMuse separates untrusted planners from typed tools, host-issued approvals, durable tasks, encrypted secrets, and redacted audit history.
 
+## Why OpenMuse is different
+
+The goal is the smallest readable personal-agent runtime whose safety semantics are verified in code and tests:
+
+- **Exact-action approval.** The host signs each approval token against one action's tool and arguments. Tokens expire and can be consumed exactly once. The planner cannot mint approvals, and approving one action never approves a similar-looking one.
+- **Verifiable audit.** Every decision lands in a redacted, hash-chained local log that you can re-verify independently. Change one audited byte and verification fails.
+- **Secrets never reach the model.** Tools receive decrypted secrets through a host callback at execution time. Secret values never appear in planner context, action arguments, tool manifests, or the audit log.
+
+## See the safety boundary in 30 seconds
+
+One simple story: the agent starts a task, pauses before one write, the user approves exactly that action, it runs, and the audit chain proves what happened.
+
+[![Play the real terminal recording](https://asciinema.org/a/MYdPbeccAUeoC8uy.svg)](https://asciinema.org/a/MYdPbeccAUeoC8uy)
+
+This is a real terminal capture. Its raw, replayable cast is also [checked into the repository](docs/assets/openmuse-demo.cast).
+
+## The approval boundary
+
+The planner and everything it reads are untrusted. Only the trusted host can issue an approval, and it issues one for the exact action the user approved:
+
+```mermaid
+flowchart TD
+    U([User])
+    subgraph untrusted["Untrusted"]
+        P["Planner (model)"]
+        X["External content: pages, messages, files"]
+    end
+    subgraph host["Trusted host"]
+        POL["Policy"]
+        AUTH["Approval authority"]
+        VAULT["Secret vault"]
+        EXEC["Tool executor"]
+        AUD["Hash-chained audit log"]
+    end
+    X -.-> P
+    P -->|proposes one typed action| POL
+    POL -->|sensitive action: ask| U
+    U -->|approves this exact action| AUTH
+    AUTH -->|one-time, expiring, action-bound token| EXEC
+    POL -->|allow| EXEC
+    VAULT -->|decrypts via host callback| EXEC
+    EXEC -->|typed result| P
+    POL --> AUD
+    AUTH --> AUD
+    EXEC --> AUD
+```
+
 ## Use a real model
 
 `OpenAICompatiblePlanner` supports OpenAI-compatible chat-completions endpoints. Set `OPENAI_API_KEY` and pass the planner to `Agent.run()`. This is an alpha adapter: use a test key and non-sensitive data.
@@ -28,14 +75,6 @@ The deterministic demo remains the recommended first run because it is free and 
 **Current scope:** an alpha security-primitives runtime and reproducible demo, not a production personal assistant. Unlike [Digger's deployable OpenMuse assistant](https://github.com/diggerhq/openmuse), this project focuses on host-enforced exact-action approval and verifiable local audit trails. The Python distribution is named `openmuse-agent`.
 
 > Independent project. Not affiliated with or endorsed by Meta. No Meta code, branding, or assets are used.
-
-## See the safety boundary in 30 seconds
-
-One simple story: the agent starts a task, pauses before one write, the user approves exactly that action, it runs, and the audit chain proves what happened.
-
-[![Play the real terminal recording](https://asciinema.org/a/MYdPbeccAUeoC8uy.svg)](https://asciinema.org/a/MYdPbeccAUeoC8uy)
-
-This is a real terminal capture. Its raw, replayable cast is also [checked into the repository](docs/assets/openmuse-demo.cast).
 
 ## Run it
 
