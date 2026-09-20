@@ -47,8 +47,31 @@ def test_valid_arguments_execute(tmp_path):
     assert result.output == "2"
 
 
-def test_unsupported_schema_keyword_fails_closed(tmp_path):
+def test_composition_and_numeric_constraints(tmp_path):
     tool = CountTool()
-    tool.schema = {"type": "object", "properties": {}, "oneOf": []}
-    result = agent(tmp_path, tool).execute(Action("count", {}))
-    assert result.error_code == "invalid_arguments"
+    tool.schema = {
+        "type": "object", "required": ["count"],
+        "properties": {"count": {"allOf": [{"type": "integer"}, {"minimum": 2}, {"maximum": 4}]}},
+        "additionalProperties": False,
+    }
+    runtime = agent(tmp_path, tool)
+    assert runtime.execute(Action("count", {"count": 1})).error_code == "invalid_arguments"
+    assert runtime.execute(Action("count", {"count": 3})).status is ActionStatus.COMPLETED
+
+
+def test_nested_arrays_and_string_constraints(tmp_path):
+    tool = CountTool()
+    tool.schema = {
+        "type": "object", "required": ["items"],
+        "properties": {"items": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^[a-z]+$"}}},
+        "additionalProperties": False,
+    }
+    runtime = agent(tmp_path, tool)
+    assert runtime.execute(Action("count", {"items": []})).error_code == "invalid_arguments"
+    assert runtime.execute(Action("count", {"items": ["UPPER"]})).error_code == "invalid_arguments"
+
+
+def test_invalid_schema_fails_closed(tmp_path):
+    tool = CountTool()
+    tool.schema = {"type": "not-a-json-schema-type"}
+    assert agent(tmp_path, tool).execute(Action("count", {})).error_code == "invalid_arguments"
