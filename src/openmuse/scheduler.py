@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 RANGES = {"minute": (0, 59), "hour": (0, 23), "dom": (1, 31), "month": (1, 12), "dow": (0, 7)}
 
@@ -35,11 +36,13 @@ def _parse_field(spec: str, low: int, high: int) -> set[int]:
 class CronSchedule:
     """Five-field cron expression: minute hour day-of-month month day-of-week."""
 
-    def __init__(self, expression: str) -> None:
+    def __init__(self, expression: str, timezone_name: str = "UTC") -> None:
         fields = expression.split()
         if len(fields) != 5:
             raise ValueError("cron expression needs five fields")
         self.expression = expression
+        self.timezone_name = timezone_name
+        self.timezone = ZoneInfo(timezone_name)
         self.minutes = _parse_field(fields[0], *RANGES["minute"])
         self.hours = _parse_field(fields[1], *RANGES["hour"])
         self.dom = _parse_field(fields[2], *RANGES["dom"])
@@ -50,7 +53,7 @@ class CronSchedule:
 
     def next_after(self, moment: datetime) -> datetime:
         """First fire time strictly after `moment`; matches standard cron OR semantics."""
-        candidate = moment.astimezone(timezone.utc).replace(second=0, microsecond=0) + timedelta(minutes=1)
+        candidate = moment.astimezone(self.timezone).replace(second=0, microsecond=0) + timedelta(minutes=1)
         for _ in range(366 * 5):
             if candidate.month in self.months and self._day_matches(candidate):
                 for hour in sorted(self.hours):
@@ -59,7 +62,7 @@ class CronSchedule:
                     for minute in sorted(self.minutes):
                         fired = candidate.replace(hour=hour, minute=minute)
                         if fired >= candidate:
-                            return fired
+                            return fired.astimezone(timezone.utc)
             candidate = (candidate + timedelta(days=1)).replace(hour=0, minute=0)
         raise ValueError("schedule has no fire time within five years")
 

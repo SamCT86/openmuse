@@ -81,3 +81,14 @@ def test_claim_due_is_atomic_across_workers(tmp_path: Path):
     assert [claimed.id for claimed in first.claim_due(now)] == [job.id]
     assert second.claim_due(now) == []
     assert [claimed.id for claimed in second.claim_due(at(2026, 9, 17, 12, 31))] == [job.id]
+
+def test_named_timezone_schedule_returns_utc():
+    schedule=CronSchedule("0 9 * * *","Asia/Seoul")
+    assert schedule.next_after(datetime(2026,9,20,23,59,tzinfo=timezone.utc)) == datetime(2026,9,21,0,0,tzinfo=timezone.utc)
+
+def test_invalid_timezone_fails_closed():
+    from zoneinfo import ZoneInfoNotFoundError
+
+    import pytest
+    with pytest.raises(ZoneInfoNotFoundError):
+        CronSchedule("0 9 * * *", "Not/AZone")
