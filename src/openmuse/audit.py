@@ -1,5 +1,6 @@
 """Redacted, hash-chained JSONL audit trail."""
 
+import fcntl
 import hashlib
 import json
 import os
@@ -24,17 +25,19 @@ class AuditLog:
 
     def append(self, record: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        previous = "0" * 64
-        if self.path.exists():
-            lines = self.path.read_text(encoding="utf-8").splitlines()
-            previous = json.loads(lines[-1]).get("hash", previous) if lines else previous
-        clean = redact(record)
-        clean["previous_hash"] = previous
-        raw = json.dumps(clean, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        clean["hash"] = hashlib.sha256(raw.encode()).hexdigest()
-        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-        with os.fdopen(fd, "a", encoding="utf-8") as h:
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a+", encoding="utf-8") as h:
+            fcntl.flock(h.fileno(), fcntl.LOCK_EX)
+            h.seek(0)
+            lines = h.read().splitlines()
+            previous = json.loads(lines[-1]).get("hash", "0" * 64) if lines else "0" * 64
+            clean = redact(record)
+            clean["previous_hash"] = previous
+            raw = json.dumps(clean, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            clean["hash"] = hashlib.sha256(raw.encode()).hexdigest()
             h.write(json.dumps(clean, ensure_ascii=False) + "\n")
+            h.flush(); os.fsync(h.fileno())
+            fcntl.flock(h.fileno(), fcntl.LOCK_UN)
 
 
 def verify_chain(path: Path) -> tuple[bool, int, str | None]:

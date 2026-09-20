@@ -27,3 +27,12 @@ def test_provider_done(monkeypatch):
     payload = {"choices": [{"message": {"content": json.dumps({"done": True})}}]}
     monkeypatch.setattr("openmuse.providers.openai_compatible.urlopen", lambda request, timeout: Response(json.dumps(payload).encode()))
     assert OpenAICompatiblePlanner(api_key="test").plan("done", [], []) is None
+
+def test_provider_requires_key():
+    import pytest
+    with pytest.raises(ValueError,match="API key"): OpenAICompatiblePlanner(api_key="")
+
+def test_provider_rejects_oversized_response(monkeypatch):
+    import pytest
+    monkeypatch.setattr("openmuse.providers.openai_compatible.urlopen",lambda request,timeout: Response(b"x"*11))
+    with pytest.raises(Exception,match="too large"): OpenAICompatiblePlanner(api_key="x",max_response_bytes=10).plan("x",[],[])

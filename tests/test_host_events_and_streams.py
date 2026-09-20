@@ -57,3 +57,10 @@ def test_task_thread_escapes_side_chat(tmp_path: Path):
     page = render_task_thread(task, store.events(task.id))
     assert "<script>" not in page
     assert "&lt;script&gt;" in page
+
+def test_replay_store_survives_restart(tmp_path):
+    from openmuse.host_events import ReplayStore
+    payload={"action_id":"a","decision":"approve"}; timestamp=int(time.time()); path=tmp_path/"replay.db"
+    first=HostEventVerifier(b"k",replay_store=ReplayStore(path)); sig=first.sign("evt",timestamp,payload); first.verify("evt",timestamp,payload,sig)
+    second=HostEventVerifier(b"k",replay_store=ReplayStore(path))
+    with pytest.raises(ValueError,match="replayed"): second.verify("evt",timestamp,payload,sig)
