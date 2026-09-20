@@ -118,7 +118,7 @@ Change any audited byte and verification fails. The verifier is intentionally sm
 | Area | Working now | Remaining production gate |
 |---|---|---|
 | Safety | Exact-action approvals, schema validation, SSRF-resistant fetch, redacted hash-chained audit | Independent security review and external audit anchoring |
-| Runtime | Budgeted planner loop, durable tasks, atomic cron claims, narrowing subagents, [resource-limited process worker](docs/isolated-worker.md) | Kernel, network, and mount isolation; production approval UI |
+| Runtime | Budgeted planner loop, durable tasks, atomic cron claims, narrowing subagents, [resource-limited process worker](docs/isolated-worker.md) | [container isolation profile](docs/container-worker.md) deployment validation or VM isolation; production approval UI |
 | Data and secrets | Verifiable memory, encrypted vault, secrets broker, OS-keyring master key | Process-separated secret service and hardware-backed keys |
 | Connectors | Credential-free simulations plus read-only Gmail and Google Calendar with managed OAuth | Independently deployed OAuth callback and more providers |
 | Channels | In-process web adapter and browser-worker policy envelope | Authenticated hosted routes and isolated browser deployment |
