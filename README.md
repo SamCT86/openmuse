@@ -1,6 +1,8 @@
 # OpenMuse
 
 [![CI](https://github.com/tahodev/openmuse/actions/workflows/ci.yml/badge.svg)](https://github.com/tahodev/openmuse/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen.svg)](#status)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://pypi.org/project/openmuse-agent/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tahodev/openmuse?quickstart=1)
 
@@ -70,7 +72,7 @@ planner = OpenAICompatiblePlanner(api_key=os.environ["OPENAI_API_KEY"])
 print(agent.run("Read README.md and stop", planner))
 ```
 
-The deterministic demo remains the recommended first run because it is free and reproducible.
+The deterministic demo remains the recommended first run because it is free and reproducible. More runnable paths are indexed in [`examples/`](examples/README.md).
 
 **Current scope:** an alpha security-primitives runtime and reproducible demo, not a production personal assistant. Unlike [Digger's deployable OpenMuse assistant](https://github.com/diggerhq/openmuse), this project focuses on host-enforced exact-action approval and verifiable local audit trails. The Python distribution is named `openmuse-agent`.
 
@@ -113,24 +115,13 @@ Change any audited byte and verification fails. The verifier is intentionally sm
 
 ## Status
 
-| Capability | Status |
-|---|---|
-| Typed, budgeted agent loop | Working |
-| Exact-action, expiring, one-time approvals | Working |
-| Workspace file tools + SSRF-resistant public fetch | Working |
-| Redacted hash-chained audit | Working |
-| SQLite task checkpoints/cancel/restart | Working |
-| In-process web channel adapter | Experimental |
-| Envelope-encrypted local secret vault | Experimental |
-| Browser-worker policy envelope | Experimental |
-| Persistent task threads + atomic cron job claims | Working |
-| Credential-free read-only mail/calendar connectors | Working |
-| Production-capable read-only Google Calendar and Gmail connectors | Working |
-| Managed Google OAuth code exchange, refresh, encrypted storage, and OS-keyring master key | Working |
-| [Resource-limited OS process worker](docs/isolated-worker.md) | Working |
-| Kernel/network-isolated browser worker | Not yet |
-| Ephemeral OTP grants + exact-total validation | Working |
-| Searchable, tiered, provenance-verifiable memory + edit/forget | Working |
+| Area | Working now | Remaining production gate |
+|---|---|---|
+| Safety | Exact-action approvals, schema validation, SSRF-resistant fetch, redacted hash-chained audit | Independent security review and external audit anchoring |
+| Runtime | Budgeted planner loop, durable tasks, atomic cron claims, narrowing subagents, [resource-limited process worker](docs/isolated-worker.md) | Kernel, network, and mount isolation; production approval UI |
+| Data and secrets | Verifiable memory, encrypted vault, secrets broker, OS-keyring master key | Process-separated secret service and hardware-backed keys |
+| Connectors | Credential-free simulations plus read-only Gmail and Google Calendar with managed OAuth | Independently deployed OAuth callback and more providers |
+| Channels | In-process web adapter and browser-worker policy envelope | Authenticated hosted routes and isolated browser deployment |
 
 Do not use OpenMuse with sensitive production accounts yet. “Working” means covered by the current test suite, not externally audited.
 
