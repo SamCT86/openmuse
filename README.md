@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/openmuse-black-sheep.svg" width="180" alt="OpenMuse black sheep mascot">
+</p>
+
 # OpenMuse
 
 [![CI](https://github.com/tahodev/openmuse/actions/workflows/ci.yml/badge.svg)](https://github.com/tahodev/openmuse/actions/workflows/ci.yml)
