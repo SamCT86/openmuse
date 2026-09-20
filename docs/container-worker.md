@@ -2,7 +2,7 @@
 
 `ContainerWorker` is a production-oriented isolation profile above the local `IsolatedWorker`. The image supplies the worker command; OpenMuse sends one JSON request on stdin and expects one JSON object on stdout.
 
-The default Docker profile has no network, a read-only root filesystem, all Linux capabilities dropped, `no-new-privileges`, a non-root user, bounded memory and PIDs, and a small ephemeral `/tmp`. It mounts no host paths. Pin and scan production images by digest.
+The default Docker profile has no network, a read-only root filesystem, all Linux capabilities dropped, `no-new-privileges`, a non-root user, bounded memory and PIDs, and a small ephemeral `/tmp`. It mounts no host paths. Images must be pinned by `@sha256:` digest. CI runs the isolation flags against a real Docker runtime; operators must repeat equivalent validation for their deployment runtime.
 
 ```python
 from openmuse.container_worker import ContainerWorker

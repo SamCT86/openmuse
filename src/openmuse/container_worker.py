@@ -20,6 +20,8 @@ class ContainerWorker:
     def __init__(self, image: str, command: Sequence[str], *, limits: WorkerLimits | None = None, policy: ContainerPolicy | None = None, runner: Runner = subprocess.run) -> None:
         if not image or not command:
             raise ValueError("container image and worker command are required")
+        if "@sha256:" not in image:
+            raise ValueError("container image must be pinned by sha256 digest")
         self.image, self.command = image, tuple(command)
         self.limits, self.policy, self._runner = limits or WorkerLimits(), policy or ContainerPolicy(), runner
 

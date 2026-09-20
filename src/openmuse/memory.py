@@ -9,6 +9,7 @@ unless it reconciles with the chain.
 
 import hashlib
 import json
+import os
 import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -127,7 +128,14 @@ class MemoryStore:
 
     def _save(self, items):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps([asdict(x) for x in items]))
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps([asdict(x) for x in items]))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, self.path)
+        self.path.chmod(0o600)
 
 
 def _terms(text: str) -> set[str]:

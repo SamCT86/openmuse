@@ -145,3 +145,10 @@ def test_deleted_memory_cannot_be_updated(tmp_path: Path):
     store.forget(item.id)
     with pytest.raises(ValueError, match="deleted memory"):
         store.update(item.id, "likes coffee", "chat:2", "2026-09-18")
+
+
+def test_memory_file_is_private_and_atomic(tmp_path):
+    store = MemoryStore(tmp_path / "memory.json")
+    store.remember("fact", "source", "2026-09-20T00:00:00Z")
+    assert (tmp_path / "memory.json").stat().st_mode & 0o777 == 0o600
+    assert not (tmp_path / "memory.json.tmp").exists()

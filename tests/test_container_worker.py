@@ -20,11 +20,16 @@ def test_container_profile_has_no_network_or_host_mounts():
 
 def test_container_worker_enforces_output_limit():
     runner = Mock(return_value=subprocess.CompletedProcess([], 0, "x" * 11, ""))
-    worker = ContainerWorker("worker", ["run"], limits=WorkerLimits(output_bytes=10), runner=runner)
+    worker = ContainerWorker("worker@sha256:abc", ["run"], limits=WorkerLimits(output_bytes=10), runner=runner)
     with pytest.raises(ValueError, match="output limit"):
         worker.run({})
 
 def test_container_worker_surfaces_runtime_failure():
     runner = Mock(return_value=subprocess.CompletedProcess([], 125, "", "runtime unavailable"))
     with pytest.raises(RuntimeError, match="runtime unavailable"):
-        ContainerWorker("worker", ["run"], runner=runner).run({})
+        ContainerWorker("worker@sha256:abc", ["run"], runner=runner).run({})
+
+
+def test_container_image_must_be_digest_pinned():
+    with pytest.raises(ValueError, match="pinned"):
+        ContainerWorker("worker:latest", ["run"])
