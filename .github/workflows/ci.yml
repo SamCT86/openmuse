@@ -13,6 +13,12 @@ jobs:
       - run: ruff check src tests
       - run: mypy src/openmuse
       - run: pytest --cov=openmuse --cov-report=term-missing --cov-fail-under=85
+      - name: Build and smoke-test installed wheel
+        run: |
+          python -m build
+          python -m venv /tmp/openmuse-wheel-smoke
+          /tmp/openmuse-wheel-smoke/bin/pip install dist/*.whl
+          /tmp/openmuse-wheel-smoke/bin/openmuse --help
       - run: python examples/e2e_demo.py --auto-approve
       - run: python examples/verify_audit.py
       - run: python -m build

@@ -22,6 +22,8 @@ def _post_form(url: str, headers: Mapping[str, str], body: bytes) -> dict[str, A
         raw = response.read(100_001)
     if len(raw) > 100_000:
         raise ValueError("OAuth response too large")
+    if not raw:
+        return {}
     payload = json.loads(raw)
     if not isinstance(payload, dict):
         raise TypeError("OAuth response must be an object")

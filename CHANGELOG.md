@@ -4,6 +4,15 @@ All notable changes are recorded here. OpenMuse follows semantic versioning whil
 
 ## Unreleased
 
+### Fixed
+
+- Google OAuth revocation now accepts the provider's documented empty `200 OK` response before deleting local credentials.
+
+### Changed
+
+- Security and roadmap documentation now match the JSON Schema, revocation, and container-isolation work in the current main branch.
+- Pull-request CI now builds and installs the wheel, then runs a CLI smoke test.
+
 ## v0.3.0-alpha - 2026-09-19
 
 ### Added

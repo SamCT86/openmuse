@@ -1,10 +1,10 @@
 import json
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from urllib.parse import parse_qs
 
 import pytest
 
-from openmuse.google_oauth import GoogleOAuthManager
+from openmuse.google_oauth import GoogleOAuthManager, _post_form
 from openmuse.secrets import SecretVault
 
 SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
@@ -75,3 +75,12 @@ def test_failed_provider_revocation_preserves_local_credentials(tmp_path):
     transport.side_effect = None
     transport.return_value = {}
     assert oauth.access_token() == "a"
+
+
+def test_post_form_accepts_empty_success_response():
+    response = Mock(status=200)
+    response.read.return_value = b""
+    response.__enter__ = Mock(return_value=response)
+    response.__exit__ = Mock(return_value=False)
+    with patch("openmuse.google_oauth.urlopen", return_value=response):
+        assert _post_form("https://oauth2.googleapis.com/revoke", {}, b"token=x") == {}
