@@ -41,6 +41,7 @@ class GoogleOAuthManager:
 
     authorization_endpoint = "https://accounts.google.com/o/oauth2/v2/auth"
     token_endpoint = "https://oauth2.googleapis.com/token"
+    revocation_endpoint = "https://oauth2.googleapis.com/revoke"
 
     def __init__(
         self,
@@ -113,6 +114,13 @@ class GoogleOAuthManager:
             return self._load().access_token
 
     def revoke_and_delete(self) -> None:
+        """Revoke the provider token before deleting the encrypted local record."""
+        tokens = self._load()
+        self._transport(
+            self.revocation_endpoint,
+            {"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+            urlencode({"token": tokens.refresh_token}).encode("ascii"),
+        )
         self._vault.delete(self._record_name)
 
     def _request(self, fields: Mapping[str, str]) -> dict[str, Any]:

@@ -56,6 +56,22 @@ def test_oauth_requires_refresh_token_and_deletes_credentials(tmp_path):
     oauth = manager(tmp_path, transport, now)
     oauth.exchange_code("code")
     oauth.revoke_and_delete()
+    endpoint, _, body = transport.call_args.args
+    assert endpoint == oauth.revocation_endpoint
+    assert parse_qs(body.decode()) == {"token": ["r"]}
     assert "google-oauth" not in json.loads((tmp_path / "vault.json").read_text())
     with pytest.raises(ValueError, match="unavailable"):
         oauth.access_token()
+
+
+def test_failed_provider_revocation_preserves_local_credentials(tmp_path):
+    now = [0.0]
+    transport = Mock(return_value={"access_token": "a", "refresh_token": "r", "expires_in": 3600, "scope": SCOPE})
+    oauth = manager(tmp_path, transport, now)
+    oauth.exchange_code("code")
+    transport.side_effect = ValueError("provider unavailable")
+    with pytest.raises(ValueError, match="provider unavailable"):
+        oauth.revoke_and_delete()
+    transport.side_effect = None
+    transport.return_value = {}
+    assert oauth.access_token() == "a"
