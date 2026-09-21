@@ -29,6 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Verify Docker isolation flags
+      - name: Build reference worker
+        run: docker build -f docker/reference-worker/Dockerfile -t openmuse-worker:ci .
+      - name: Resolve local image digest for conformance
         run: |
-          docker run --rm --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=64 --memory=128m --user=65532:65532 --tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m python:3.12-alpine python -c 'import os, socket; assert os.getuid() == 65532; socket.socket().connect_ex(("1.1.1.1", 53)) != 0'
+          digest=$(docker image inspect openmuse-worker:ci --format='{{.Id}}')
+          python scripts/container_conformance.py "${digest}"
