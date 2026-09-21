@@ -1,6 +1,8 @@
 # Security
 
-OpenMuse is alpha software with no production-supported release. Report vulnerabilities using a [private GitHub security advisory](https://github.com/tahodev/openmuse/security/advisories/new), never a public issue.
+OpenMuse is alpha software with no production-supported release. Report vulnerabilities using a [private GitHub security advisory](https://github.com/tahodev/openmuse/security/advisories/new) or email [kexim.pnh@gmail.com](mailto:kexim.pnh@gmail.com), never a public issue.
+
+Vulnerabilities can also be disclosed through [huntr](https://huntr.com/bounties/disclose), an AI/ML bug bounty platform.
 
 ## Current limits
 
