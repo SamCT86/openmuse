@@ -31,6 +31,8 @@ class CountWords(ManifestMixin):
 
 Register the instance with `Agent`. Add tests for valid input, every rejection boundary, risk classification, and the manifest. A write or external side effect must use `Risk.WRITE` and exact-action approval.
 
+For a runnable, credential-free end-to-end example, see [`examples/typed_tool.py`](../examples/typed_tool.py) and its focused tests in [`tests/test_typed_tool_example.py`](../tests/test_typed_tool_example.py).
+
 ## Add a simulation-first connector
 
 Start with credential-free behavior. `JSONFixtureConnector` already supplies read-only `list` and `search` capabilities:
