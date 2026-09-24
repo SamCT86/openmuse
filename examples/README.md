@@ -4,6 +4,7 @@ Every example runs locally. Start with the approval demo, then pick the boundary
 
 | Example | What it shows | Credentials | Command |
 |---|---|---|---|
+| `openmuse-chat` | Browser chat with the agent; writes pause for exact-action approval in the page | None (optional model key) | `openmuse-chat --workspace .` |
 | [`approval_app.py`](approval_app.py) | Local UI for inspecting and approving or denying one exact persisted action | None | `python examples/approval_app.py` |
 | [`e2e_demo.py`](e2e_demo.py) | Exact-action approval, a durable task, and a hash-chained audit | None | `python examples/e2e_demo.py` |
 | [`verify_audit.py`](verify_audit.py) | Independent verification of the demo's audit chain and executed action | None | `python examples/verify_audit.py` |

@@ -36,3 +36,11 @@ def test_provider_rejects_oversized_response(monkeypatch):
     import pytest
     monkeypatch.setattr("openmuse.providers.openai_compatible.urlopen",lambda request,timeout: Response(b"x"*11))
     with pytest.raises(Exception,match="too large"): OpenAICompatiblePlanner(api_key="x",max_response_bytes=10).plan("x",[],[])
+
+
+def test_provider_done_keeps_reply(monkeypatch):
+    payload = {"choices": [{"message": {"content": json.dumps({"done": True, "reply": "hello"})}}]}
+    monkeypatch.setattr("openmuse.providers.openai_compatible.urlopen", lambda request, timeout: Response(json.dumps(payload).encode()))
+    planner = OpenAICompatiblePlanner(api_key="test")
+    assert planner.plan("hi", [], []) is None
+    assert planner.last_reply == "hello"

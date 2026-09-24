@@ -58,6 +58,20 @@ VERIFIED: 3 records form an intact hash chain
 
 Change any audited byte and verification fails. More credential-free paths are indexed in [`examples/`](examples/README.md).
 
+## Chat in your browser
+
+Start a local web chat and talk to the agent directly:
+
+```bash
+openmuse-chat --workspace .
+```
+
+Open http://127.0.0.1:8766. Without an API key it uses an offline demo planner, so you can try `read README.md`, `write notes/hello.txt: hi`, or `fetch https://example.com` right away. Export `OPENAI_API_KEY` (or pass `--planner openai --model ... --base-url ...` for any OpenAI-compatible endpoint) to chat with a real model.
+
+Reads run immediately. Writes go through the same approval boundary as the CLI: the chat pauses, shows a host-rendered card with the exact tool, destination, and arguments, and runs the action once only after you click **Approve exact action**. Denied actions never run, a decision cannot be replayed, and planner output can never carry its own approval. Every step lands in `.openmuse/web-chat-audit.jsonl`.
+
+The server binds to localhost only and is a reference app, not a hosted service.
+
 ## The approval boundary
 
 The planner and everything it reads are untrusted. Only the host can issue an approval, and that approval is bound to one exact action:
@@ -123,7 +137,7 @@ OpenMuse is an **alpha security-primitives runtime and reproducible demo**, not 
 | Runtime | Budgeted planner loop, durable tasks, timezone-aware atomic cron claims, narrowing subagents, resource-limited process worker, CI-validated locked-down container profile | Validate the chosen container or VM runtime in deployment; provide a production approval UI |
 | Data and secrets | Verifiable memory, encrypted vault, OS-keyring master key, process-separated authenticated secret service | Add a hardware-backed master-key provider and deployment-specific key operations |
 | Connectors | Credential-free simulations, read-only Gmail and Google Calendar, managed OAuth with revocation | Independently deploy the OAuth callback and add reviewed providers |
-| Channels | In-process web adapter and browser-worker policy envelope | Add authenticated hosted routes and validate isolated browser deployment |
+| Channels | Local web chat with in-browser exact-action approvals, in-process web adapter, and browser-worker policy envelope | Add authenticated hosted routes and validate isolated browser deployment |
 
 Do not use OpenMuse with sensitive production accounts yet. Deployment guidance and open gates live in the [roadmap](docs/roadmap.md), [container profile](docs/container-worker.md), [audit anchoring guide](docs/audit-anchoring.md), [approval service guide](docs/approval-service.md), and [secret service guide](docs/secret-service.md).
 

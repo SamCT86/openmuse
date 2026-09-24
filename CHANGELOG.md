@@ -4,6 +4,11 @@ All notable changes are recorded here. OpenMuse follows semantic versioning whil
 
 ## Unreleased
 
+### Added
+
+- `openmuse-chat`: a local web chat that talks to the agent from the browser. Reads run immediately; writes pause for an in-browser, host-rendered exact-action approval and run once. Works offline with a demo planner or with any OpenAI-compatible model.
+- `OpenAICompatiblePlanner` keeps an optional `reply` from the model's final `{done: true}` response as `last_reply`.
+
 ### Fixed
 
 - Google OAuth revocation now accepts the provider's documented empty `200 OK` response before deleting local credentials.
