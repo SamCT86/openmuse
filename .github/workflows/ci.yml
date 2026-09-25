@@ -12,6 +12,7 @@ jobs:
       - run: python -m pip install -e '.[dev]'
       - run: ruff check src tests
       - run: mypy src/openmuse
+      - run: python scripts/markdown_links.py
       - run: pytest --cov=openmuse --cov-branch --cov-report=term-missing --cov-fail-under=85
       - name: Build and smoke-test installed wheel
         run: |
