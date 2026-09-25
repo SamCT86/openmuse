@@ -70,3 +70,30 @@ def test_ignores_external_network_links(tmp_path: Path) -> None:
     )
 
     assert checker.check_markdown_links(tmp_path, [readme]) == []
+
+
+def test_ignores_any_non_file_uri_scheme(tmp_path: Path) -> None:
+    checker = load_checker()
+    readme = tmp_path / "README.md"
+    readme.write_text("[mirror](ftp://example.com/archive.md)\n", encoding="utf-8")
+
+    assert checker.check_markdown_links(tmp_path, [readme]) == []
+
+
+def test_ignores_links_inside_fenced_code(tmp_path: Path) -> None:
+    checker = load_checker()
+    readme = tmp_path / "README.md"
+    readme.write_text("```md\n[example](missing.md)\n```\n", encoding="utf-8")
+
+    assert checker.check_markdown_links(tmp_path, [readme]) == []
+
+
+def test_checks_html_image_sources(tmp_path: Path) -> None:
+    checker = load_checker()
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "logo.svg").write_text("<svg/>\n", encoding="utf-8")
+    readme = tmp_path / "README.md"
+    readme.write_text('<img src="assets/logo.svg" alt="logo">\n', encoding="utf-8")
+
+    assert checker.check_markdown_links(tmp_path, [readme]) == []
