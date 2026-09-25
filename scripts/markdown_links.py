@@ -12,7 +12,6 @@ MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)\n]+)\)")
 HTML_LINK_RE = re.compile(r"<(?:a|img)\b[^>]*(?:href|src)=[\"']([^\"']+)[\"']", re.IGNORECASE)
 HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$")
 HTML_ANCHOR_RE = re.compile(r"<(?:a|[^>]+\s)\b(?:id|name)=[\"']([^\"']+)[\"']", re.IGNORECASE)
-EXTERNAL_SCHEMES = {"http", "https", "mailto", "tel", "data", "javascript"}
 
 
 def _strip_fenced_code(text: str) -> str:
@@ -107,7 +106,7 @@ def check_markdown_links(root: Path, markdown_files: list[Path]) -> list[str]:
             if destination.startswith("//"):
                 continue
             parsed = urlsplit(destination)
-            if parsed.scheme.casefold() in EXTERNAL_SCHEMES:
+            if parsed.scheme:
                 continue
 
             path_part = unquote(parsed.path)
