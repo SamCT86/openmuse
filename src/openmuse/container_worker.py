@@ -5,6 +5,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .bounded_process import run_bounded
 from .isolated_worker import WorkerLimits, WorkerResult
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
@@ -30,7 +31,15 @@ class ContainerWorker:
 
     def run(self, request: dict[str, Any]) -> WorkerResult:
         try:
-            completed = self._runner(self.runtime_command(), input=json.dumps(request), text=True, capture_output=True, timeout=self.limits.timeout_seconds, check=False)
+            if self._runner is subprocess.run:
+                completed = run_bounded(
+                    self.runtime_command(), json.dumps(request),
+                    self.limits.output_bytes, self.limits.timeout_seconds,
+                )
+            else:
+                # Injected test runners do not launch a child. They must obey
+                # the runner contract; post-check their returned values.
+                completed = self._runner(self.runtime_command(), input=json.dumps(request), text=True, capture_output=True, timeout=self.limits.timeout_seconds, check=False)
         except subprocess.TimeoutExpired as error:
             raise TimeoutError("container worker timed out") from error
         if len(completed.stdout.encode()) > self.limits.output_bytes or len(completed.stderr.encode()) > self.limits.output_bytes:
