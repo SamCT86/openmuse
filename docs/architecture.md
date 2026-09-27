@@ -45,3 +45,13 @@ what happened. If the outcome write fails after the tool call, the result is
 only relative to a trusted checkpoint; it is not independently anchored by
 being stored locally. Audit records can show a tool was attempted but cannot
 prove a third-party side effect completed.
+
+## Local web approval restart policy
+
+The web chat's pending action/card map and approval-token authority are
+in-memory. This alpha flow is deliberately **ephemeral**, not restart-safe:
+`ApprovalService` marks pending database rows interrupted on startup, so stale
+approval links cannot run after a restart. The database stores the canonical
+action ID with tool/arguments and checks it against the pending card. In-flight
+external effects are not replayed or retried automatically; a production host
+needs durable request recovery, authenticated identity, and reconciliation.
