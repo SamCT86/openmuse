@@ -2,16 +2,23 @@
 
 OpenMuse extensions begin with the smallest authority that solves the problem. Keep simulation and fail-closed tests beside every live boundary.
 
+## Skill artifacts versus Python extensions
+
+A skill artifact is data/instructions. It is not a trusted executable plugin.
+Only vetted host code belongs in the in-process Python registry. For
+untrusted code, use a host-configured pinned container through the read-only
+`WorkerTool` adapter; effects requiring host RPC are not supported in alpha.
+See [architecture](architecture.md#extension-trust-boundary-alpha).
+
 ## Add a typed tool
 
-A tool declares a stable name, human-readable description, risk, JSON Schema, and `run` method. Reject unknown fields so approval covers the complete action shape.
+A trusted in-process Python tool declares a stable name, human-readable description, risk, JSON Schema, and `run` method. Reject unknown fields so approval covers the complete action shape.
 
 ```python
 from dataclasses import dataclass
 from typing import Any
 
-from openmuse.policy import Risk
-from openmuse.tools import ManifestMixin
+from openmuse import Risk, ManifestMixin
 
 @dataclass
 class CountWords(ManifestMixin):
@@ -46,7 +53,7 @@ class SimulatedTickets(JSONFixtureConnector):
         super().__init__(fixture, "tickets", "tickets.read")
 ```
 
-For a live connector, subclass `ReadOnlyConnector`, declare the narrow provider scope, validate capability arguments, and implement `delete_cached_data`. Keep tokens out of fixtures, logs, errors, and planner-visible results. Revocation must call the provider first, clear cached clients, delete local credentials only after provider success, and fail closed on uncertainty. Test both the simulator and provider boundary with recorded fake responses before using a disposable account.
+For a live trusted host connector, import `ReadOnlyConnector` from `openmuse` and subclass it, declare the narrow provider scope, validate capability arguments, and implement `delete_cached_data`. Keep tokens out of fixtures, logs, errors, and planner-visible results. Revocation must call the provider first, clear cached clients, delete local credentials only after provider success, and fail closed on uncertainty. Test both the simulator and provider boundary with recorded fake responses before using a disposable account.
 
 ## Add a master-key provider
 
