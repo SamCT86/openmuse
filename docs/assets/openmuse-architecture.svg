@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="680" viewBox="0 0 1040 680" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#57606a"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1a7f37"/>
+    </marker>
+  </defs>
+  <style>
+    .zone-label { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+    .box-title { font-size: 14px; font-weight: 700; fill: #1f2328; }
+    .box-sub { font-size: 11.5px; fill: #4c5560; }
+    .edge { font-size: 11px; fill: #57606a; }
+    .edgeg { font-size: 11px; fill: #1a7f37; }
+    .num { font-size: 11px; font-weight: 700; fill: #ffffff; }
+  </style>
+  <rect x="0" y="0" width="1040" height="680" fill="#ffffff"/>
+
+  <!-- You -->
+  <rect x="600" y="16" width="416" height="64" rx="8" fill="#f6f8fa" stroke="#8c959f" stroke-width="1.5"/>
+  <text x="808" y="41" text-anchor="middle" class="box-title">You</text>
+  <text x="808" y="61" text-anchor="middle" class="box-sub">via CLI or local web chat (localhost only)</text>
+
+  <!-- Untrusted zone -->
+  <rect x="24" y="120" width="330" height="330" rx="10" fill="#fff5f5" stroke="#d1242f" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="40" y="144" class="zone-label" fill="#d1242f">UNTRUSTED</text>
+  <rect x="44" y="160" width="290" height="74" rx="8" fill="#ffffff" stroke="#d1242f" stroke-width="1.2"/>
+  <text x="189" y="188" text-anchor="middle" class="box-title">External content</text>
+  <text x="189" y="208" text-anchor="middle" class="box-sub">web pages, messages, files, tool output</text>
+  <text x="189" y="224" text-anchor="middle" class="box-sub">everything the model reads</text>
+  <rect x="44" y="300" width="290" height="88" rx="8" fill="#ffffff" stroke="#d1242f" stroke-width="1.2"/>
+  <text x="189" y="330" text-anchor="middle" class="box-title">Planner (the model)</text>
+  <text x="189" y="350" text-anchor="middle" class="box-sub">any OpenAI-compatible endpoint,</text>
+  <text x="189" y="366" text-anchor="middle" class="box-sub">or the offline demo planner</text>
+  <text x="189" y="414" text-anchor="middle" class="box-sub">never holds approval secrets or vault keys</text>
+
+  <!-- Trusted host zone -->
+  <rect x="384" y="104" width="632" height="356" rx="10" fill="#f0f7f1" stroke="#1a7f37" stroke-width="1.5"/>
+  <text x="1000" y="128" text-anchor="end" class="zone-label" fill="#1a7f37">TRUSTED HOST - the OpenMuse runtime</text>
+
+  <rect x="408" y="146" width="286" height="76" rx="8" fill="#ffffff" stroke="#1a7f37" stroke-width="1.2"/>
+  <text x="551" y="172" text-anchor="middle" class="box-title">Policy engine</text>
+  <text x="551" y="192" text-anchor="middle" class="box-sub">risk tiers: read / write / represent / money</text>
+  <text x="551" y="208" text-anchor="middle" class="box-sub">denies unless allowed or approved</text>
+
+  <rect x="726" y="146" width="266" height="76" rx="8" fill="#ffffff" stroke="#1a7f37" stroke-width="1.2"/>
+  <text x="859" y="172" text-anchor="middle" class="box-title">Approval service</text>
+  <text x="859" y="192" text-anchor="middle" class="box-sub">host-signed token: one-time, expiring,</text>
+  <text x="859" y="208" text-anchor="middle" class="box-sub">bound to the exact action + arguments</text>
+
+  <rect x="452" y="282" width="280" height="76" rx="8" fill="#ffffff" stroke="#1a7f37" stroke-width="1.2"/>
+  <text x="592" y="308" text-anchor="middle" class="box-title">Tool executor</text>
+  <text x="592" y="328" text-anchor="middle" class="box-sub">validates each call against the tool's schema,</text>
+  <text x="592" y="344" text-anchor="middle" class="box-sub">then runs it once</text>
+
+  <rect x="760" y="282" width="232" height="76" rx="8" fill="#ffffff" stroke="#1a7f37" stroke-width="1.2"/>
+  <text x="876" y="308" text-anchor="middle" class="box-title">Secret service</text>
+  <text x="876" y="328" text-anchor="middle" class="box-sub">separate process; decrypts one scoped</text>
+  <text x="876" y="344" text-anchor="middle" class="box-sub">secret at execution time</text>
+
+  <rect x="408" y="392" width="584" height="52" rx="8" fill="#ffffff" stroke="#1a7f37" stroke-width="1.2"/>
+  <text x="700" y="412" text-anchor="middle" class="box-title">Audit log - redacted, hash-chained JSONL</text>
+  <text x="700" y="432" text-anchor="middle" class="box-sub">policy decisions, approvals, and executions appended here; signed checkpoints anchor the chain</text>
+
+  <!-- Tools & skills zone -->
+  <rect x="384" y="516" width="632" height="140" rx="10" fill="#f6f8fa" stroke="#57606a" stroke-width="1.5"/>
+  <text x="400" y="540" class="zone-label" fill="#57606a">TOOLS &amp; SKILLS - typed, schema-validated, run by the executor</text>
+  <rect x="400" y="552" width="188" height="88" rx="8" fill="#ffffff" stroke="#8c959f" stroke-width="1.2"/>
+  <text x="494" y="578" text-anchor="middle" class="box-title">Built-in tools</text>
+  <text x="494" y="598" text-anchor="middle" class="box-sub">read_file &#183; write_file</text>
+  <text x="494" y="614" text-anchor="middle" class="box-sub">fetch_url (SSRF-resistant)</text>
+  <rect x="604" y="552" width="188" height="88" rx="8" fill="#ffffff" stroke="#8c959f" stroke-width="1.2"/>
+  <text x="698" y="578" text-anchor="middle" class="box-title">Connectors</text>
+  <text x="698" y="598" text-anchor="middle" class="box-sub">Gmail &#183; Google Calendar</text>
+  <text x="698" y="614" text-anchor="middle" class="box-sub">read-only, scoped grants</text>
+  <rect x="808" y="552" width="192" height="88" rx="8" fill="#ffffff" stroke="#8c959f" stroke-width="1.2"/>
+  <text x="904" y="572" text-anchor="middle" class="box-title">Your tools</text>
+  <text x="904" y="592" text-anchor="middle" class="box-sub">one typed Python class each;</text>
+  <text x="904" y="608" text-anchor="middle" class="box-sub">in-process, isolated worker,</text>
+  <text x="904" y="624" text-anchor="middle" class="box-sub">or container profile</text>
+
+  <!-- Edges -->
+  <!-- 1 external content -> planner -->
+  <line x1="189" y1="234" x2="189" y2="296" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="158" cy="262" r="10" fill="#24292f"/><text x="158" y="266" text-anchor="middle" class="num">1</text>
+  <text x="172" y="266" class="edge">reads</text>
+
+  <!-- 2 planner -> policy -->
+  <path d="M 334 344 L 368 344 L 402 196" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="384" cy="282" r="10" fill="#24292f"/><text x="384" y="286" text-anchor="middle" class="num">2</text>
+  <text x="238" y="252" class="edge">proposes one</text>
+  <text x="238" y="266" class="edge">typed action</text>
+
+  <!-- 3 policy -> you -->
+  <path d="M 640 146 L 640 48 L 604 48" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="640" cy="97" r="10" fill="#24292f"/><text x="640" y="101" text-anchor="middle" class="num">3</text>
+  <text x="628" y="94" text-anchor="end" class="edge">sensitive action: ask, with the exact call shown</text>
+
+  <!-- 4 you -> approval service -->
+  <line x1="859" y1="80" x2="859" y2="142" stroke="#1a7f37" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+  <circle cx="859" cy="107" r="10" fill="#1a7f37"/><text x="859" y="111" text-anchor="middle" class="num">4</text>
+  <text x="845" y="111" text-anchor="end" class="edgeg">approve this exact action</text>
+
+  <!-- 5 approval service -> executor -->
+  <line x1="820" y1="222" x2="640" y2="278" stroke="#1a7f37" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+  <circle cx="745" cy="243" r="10" fill="#1a7f37"/><text x="745" y="247" text-anchor="middle" class="num">5</text>
+  <text x="648" y="266" class="edgeg">one-time, action-bound token</text>
+
+  <!-- policy -> executor (reads allowed) -->
+  <line x1="551" y1="222" x2="572" y2="278" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="543" y="252" text-anchor="end" class="edge">read-only: run at once</text>
+
+  <!-- secret service -> executor -->
+  <line x1="760" y1="320" x2="736" y2="320" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- executor -> audit (dotted) -->
+  <line x1="520" y1="358" x2="520" y2="388" stroke="#57606a" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrow)"/>
+
+  <!-- 6 executor -> tools -->
+  <path d="M 700 358 L 700 372 L 1004 372 L 1004 490 L 494 490 L 494 548" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="640" cy="490" r="10" fill="#24292f"/><text x="640" y="494" text-anchor="middle" class="num">6</text>
+  <text x="656" y="494" class="edge">runs the call</text>
+
+  <!-- 7 tools -> planner (typed result) -->
+  <path d="M 384 596 L 200 596 L 200 470 L 189 470 L 189 392" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <circle cx="200" cy="520" r="10" fill="#24292f"/><text x="200" y="524" text-anchor="middle" class="num">7</text>
+  <text x="216" y="524" class="edge">typed result</text>
+</svg>
