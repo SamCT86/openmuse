@@ -139,7 +139,7 @@ class ChatSession:
         decided = self.approvals.decide(request_id, session, decision)
         del self.pending[request_id]
         stored = json.loads(decided.action_json)
-        if stored != {"tool": pending.action.tool, "arguments": dict(pending.action.arguments)}:
+        if stored != {"id": pending.action.id, "tool": pending.action.tool, "arguments": dict(pending.action.arguments)}:
             raise ValueError("stored action does not match pending action")
         if decided.status != "approved":
             reply = f"Denied. {pending.action.tool} did not run."
