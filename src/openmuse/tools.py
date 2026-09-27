@@ -2,8 +2,10 @@
 
 import http.client
 import ipaddress
+import os
 import socket
 import ssl
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -26,17 +28,40 @@ class ManifestMixin:
         return {"name": self.name, "description": self.description, "risk": self.risk.value, "schema": self.schema}
 
 
-def safe_path(root: Path, raw: str, write=False) -> Path:
-    root = root.resolve()
-    target = (root / raw).resolve(strict=False)
-    if target != root and root not in target.parents:
+def _components(raw: str) -> list[str]:
+    path = Path(raw)
+    if path.is_absolute() or not raw or "\x00" in raw:
         raise ValueError("path escapes workspace")
-    cursor = target.parent if write else target
-    while cursor != root:
-        if cursor.is_symlink():
-            raise ValueError("symlink paths are blocked")
-        cursor = cursor.parent
-    return target
+    parts = raw.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise ValueError("path escapes workspace")
+    return parts
+
+
+def safe_path(root: Path, raw: str, write=False) -> Path:
+    """Display-only path; never use this return value to open a file."""
+    _components(raw)
+    return root.resolve() / raw
+
+
+def _parent_fd(root: Path, raw: str, create: bool = False) -> tuple[int, str]:
+    """Walk from an anchored directory fd without following symlinks."""
+    parts = _components(raw)
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in parts[:-1]:
+            if create:
+                try:
+                    os.mkdir(part, dir_fd=fd)
+                except FileExistsError:
+                    pass
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        return fd, parts[-1]
+    except BaseException:
+        os.close(fd)
+        raise
 
 
 @dataclass
@@ -51,7 +76,15 @@ class ReadFile(ManifestMixin):
         self.schema = {"type": "object", "required": ["path"], "properties": {"path": {"type": "string"}}}
 
     def run(self, path: str, **_: Any) -> str:
-        return safe_path(self.workspace, path).read_text(encoding="utf-8")
+        parent, leaf = _parent_fd(self.workspace, path)
+        try:
+            fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        finally:
+            os.close(parent)
+        with os.fdopen(fd, "r", encoding="utf-8") as handle:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise ValueError("not a regular file")
+            return handle.read()
 
 
 @dataclass
@@ -70,12 +103,17 @@ class WriteFile(ManifestMixin):
         }
 
     def run(self, path: str, content: str, **_: Any) -> str:
-        target = safe_path(self.workspace, path, True)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if target.is_symlink():
-            raise ValueError("symlink target blocked")
-        target.write_text(content, encoding="utf-8")
-        return f"wrote {target.relative_to(self.workspace.resolve())}"
+        parent, leaf = _parent_fd(self.workspace, path, create=True)
+        try:
+            fd = os.open(leaf, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=parent)
+        finally:
+            os.close(parent)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise ValueError("not a regular file")
+            os.ftruncate(fd, 0)
+            handle.write(content)
+        return f"wrote {path}"
 
 
 def _public_addresses(host: str, port: int) -> list[str]:
