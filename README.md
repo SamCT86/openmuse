@@ -5,8 +5,8 @@
 <h1 align="center">OpenMuse</h1>
 
 <p align="center">
-  A local-first, auditable personal AI agent runtime.<br>
-  Untrusted planners stay behind typed tools, exact-action approvals, isolated workers, encrypted secrets, and verifiable audit history.
+  A local-first personal-agent runtime you can inspect and extend, with exact-action approvals and verifiable audit.<br>
+  Build on typed tools, isolated workers, and encrypted secrets without giving the planner unchecked access.
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
 
 ## Why OpenMuse is different
 
-OpenMuse is a small, readable runtime whose safety claims are enforced in code and covered by tests:
+Use OpenMuse when you want to build a personal agent and inspect the host that decides what it may do. It is a Python runtime with a local browser chat and tested approval and audit boundaries, not a hosted assistant or a multi-agent orchestration suite. Compared with rolling your own, the permission checks and audit path are already here to read, run, and extend:
 
 - **Exact-action approval.** The host signs each approval token for one tool call and its exact arguments. Tokens expire, can be consumed once, and cannot be minted by the planner.
 - **Verifiable audit.** Decisions land in a redacted, hash-chained local log. Signed checkpoints can be published to an independent store so later verification can detect rewritten history.
@@ -33,7 +33,7 @@ This is a real terminal capture. Its raw, replayable cast is [checked into the r
 
 ## Run it locally
 
-Requires Python 3.11+ and Git. The deterministic demo needs no API key.
+Requires Python 3.11+ and Git. Run these commands in a terminal from a clean checkout. The deterministic demo needs no API key or live account. On Windows, use the activation command in the comment instead of `source`.
 
 ```bash
 git clone https://github.com/tahodev/openmuse.git
@@ -44,7 +44,7 @@ python -m pip install -e '.[dev]'
 python examples/e2e_demo.py
 ```
 
-The demo pauses at its sensitive write so you can inspect and approve it. Then independently verify every audit hash and link:
+At `Approve this exact action? [y/N]`, inspect the displayed tool, path and content, then type `y` to let the demo write its sample plan. It writes only inside `.openmuse-demo/` (and replaces that demo folder on each run), not to an external service. Then verify the audit chain:
 
 ```bash
 python examples/verify_audit.py
@@ -56,17 +56,17 @@ Expected result:
 VERIFIED: 3 records form an intact hash chain
 ```
 
-Change any audited byte and verification fails. More credential-free paths are indexed in [`examples/`](examples/README.md).
+You should also see `VERIFIED: approved action == executed action (...)`. If you answer `N`, nothing is written and there is no completed action to verify. Change any audited byte and verification fails. More credential-free paths are indexed in [`examples/`](examples/README.md).
 
 ## Chat in your browser
 
-Start a local web chat and talk to the agent directly:
+After the install above, start a local web chat in another terminal from the repo root:
 
 ```bash
 openmuse-chat --workspace .
 ```
 
-Open http://127.0.0.1:8766. Without an API key it uses an offline demo planner, so you can try `read README.md`, `write notes/hello.txt: hi`, or `fetch https://example.com` right away. Export `OPENAI_API_KEY` (or pass `--planner openai --model ... --base-url ...` for any OpenAI-compatible endpoint) to chat with a real model.
+Open http://127.0.0.1:8766 in your own browser. Without an API key it uses an offline demo planner, so you can try `read README.md`, then `write notes/hello.txt: hi` to see an approval card. The chat uses the directory passed to `--workspace` (here the repo root), so use a throwaway checkout for experiments. Stop the server with Ctrl+C. Export `OPENAI_API_KEY` (or pass `--planner openai --model ... --base-url ...` for any OpenAI-compatible endpoint) to chat with a real model.
 
 Reads run immediately. Writes go through the same approval boundary as the CLI: the chat pauses, shows a host-rendered card with the exact tool, destination, and arguments, and runs the action once only after you click **Approve exact action**. Denied actions never run, a decision cannot be replayed, and planner output can never carry its own approval. Every step lands in `.openmuse/web-chat-audit.jsonl`.
 
