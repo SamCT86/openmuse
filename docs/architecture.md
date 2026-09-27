@@ -78,3 +78,14 @@ may call `retry_unknown`; this permits a new claim. This is not a unified
 scheduler/chat/task state machine. `TaskStore` and chat transcripts still have
 separate persistence; production cross-component lifecycle and exactly-once
 external effects remain unsupported rather than promised.
+
+## Workspace file boundary
+
+Built-in read/write tools walk workspace paths via anchored directory file
+descriptors (`open` with `dir_fd` and `O_NOFOLLOW`) and open the final regular
+file relative to the parent fd. They reject absolute paths, traversal and
+symlinks, including a directory swapped during path traversal; `safe_path`
+remains display-only and must not be used to open a file. The write tool
+checks the opened file type before truncating it. This protects its own path
+operations, not malicious in-process Python extensions or untrusted workspace
+mounts outside this process's control.
