@@ -11,3 +11,8 @@ result = worker.run({"task": "render"})
 ```
 
 The host kernel and container runtime enforce these flags. VM isolation, a reviewed image, and deployment-specific validation remain operator responsibilities.
+
+The default subprocess runner captures stdout/stderr in OS-capped temporary files
+with a wall-clock timeout. A custom injected runner is intended for tests and
+must provide equivalent bounds itself; this adapter only checks its returned
+strings after the fact.
