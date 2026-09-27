@@ -14,6 +14,14 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
 </p>
 
+## Architecture at a glance
+
+<p align="center">
+  <img src="docs/assets/openmuse-architecture.svg" width="900" alt="OpenMuse architecture: an untrusted planner and external content on one side, the trusted host with policy engine, approval service, tool executor, secret service, and hash-chained audit log on the other, and the tools and skills the executor may run below">
+</p>
+
+The model proposes; the host decides. Every sensitive call pauses for your exact-action approval, and every decision lands in the hash-chained audit log. Full boundary in [docs/architecture.md](docs/architecture.md).
+
 ## Why OpenMuse is different
 
 Use OpenMuse when you want to build a personal agent and inspect the host that decides what it may do. It is a Python runtime with a local browser chat and tested approval and audit boundaries, not a hosted assistant or a multi-agent orchestration suite. Compared with rolling your own, the permission checks and audit path are already here to read, run, and extend:
@@ -22,6 +30,21 @@ Use OpenMuse when you want to build a personal agent and inspect the host that d
 - **Verifiable audit.** Decisions land in a redacted, hash-chained local log. Signed checkpoints can be published to an independent store so later verification can detect rewritten history.
 - **Secrets stay outside planner context.** A process-separated service decrypts secrets for the host at execution time. Secret values do not enter action arguments, tool manifests, or the audit log.
 - **Bounded execution.** Typed schemas, budgets, SSRF-resistant fetches, resource-limited workers, and a network-isolated container profile constrain what a proposed action can do.
+
+
+## How OpenMuse compares
+
+Checked against each project's current docs and repositories (September 2026).
+
+| | OpenMuse | [OpenClaw](https://github.com/openclaw/openclaw) | [CrewAI](https://github.com/crewAIInc/crewAI) | Roll your own |
+|---|---|---|---|---|
+| What it is | A small local-first personal-agent runtime you can read end to end (Python, alpha) | A full personal-assistant platform: gateway, channels, apps, skill registry | A multi-agent orchestration framework (Python) | Your own stack, your own rules |
+| Local-first | ✅ Runs on your machine, localhost-only chat, no hosted service | ✅ State, memory, and credentials live on your hardware; gateway binds to loopback by default | ⚠️ The framework runs locally (local models included); observability and the control plane live in the commercial AMP suite | ✅ If you build it that way |
+| Exact-action approvals | ✅ Every sensitive tool call needs a host-signed token bound to that exact action and its arguments: one-time, expiring, and impossible for the planner to mint | ⚠️ Host-command approvals bind exact argv, cwd, and executable, but other tools run under allowlists and single-operator installs default to `security=full` (no prompting) | ❌ `human_input=True` asks a human to review a task's final answer, not each tool call | You build it |
+| Verifiable audit log | ✅ Redacted, hash-chained JSONL with signed checkpoints and a verifier you can run | ❌ A metadata-only activity ledger with 30-day retention; the community PR that added a tamper-evident chain was declined | ❌ Tracing via AMP or third-party observability tools; no tamper-evident audit trail | You build it |
+| Hackability | ✅ Typed tools, an extension cookbook, and a core small enough to read in an afternoon | ✅ TypeScript plugin SDK plus the ClawHub skill registry | ✅ Large integration ecosystem, YAML/Python crew definitions | ✅ Total, including the security bugs |
+
+Sources: OpenClaw [security](https://docs.openclaw.ai/gateway/security), [exec approvals](https://docs.openclaw.ai/tools/exec-approvals), [audit history](https://docs.openclaw.ai/gateway/audit), and the [declined audit-chain PR #23835](https://github.com/openclaw/openclaw/pull/23835); CrewAI [README](https://github.com/crewAIInc/crewAI) and [human input docs](https://docs.crewai.com/en/learn/human-input-on-execution).
 
 ## See the safety boundary in 30 seconds
 
@@ -152,3 +175,4 @@ See the [extension cookbook](docs/extension-cookbook.md), [public API policy](do
 ## License
 
 MIT.
+
