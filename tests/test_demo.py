@@ -25,5 +25,5 @@ def test_e2e_demo_and_verifier(tmp_path):
         capture_output=True,
         text=True,
     )
-    assert "VERIFIED: 3 records" in verify.stdout
+    assert "VERIFIED: 5 records" in verify.stdout
     assert "approved action == executed action" in verify.stdout
