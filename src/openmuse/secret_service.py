@@ -1,4 +1,9 @@
-"""Local process-separated secret service over an authenticated Unix socket."""
+"""Experimental local secret-return protocol, NOT a production isolation boundary.
+
+The shared HMAC key authenticates a request but does not scope the caller.
+The plaintext is returned to the client and can reach any client callback.
+Do not expose this interface or key to untrusted extension code.
+"""
 import hashlib
 import hmac
 import json
