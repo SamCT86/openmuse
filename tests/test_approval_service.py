@@ -15,3 +15,16 @@ def test_bad_session_and_expiry_fail_closed(tmp_path):
     with pytest.raises(ValueError,match="session"): service.decide(request.id,"bad","approved")
     now[0]=101
     with pytest.raises(ValueError,match="expired"): service.decide(request.id,session,"approved")
+
+
+def test_restart_invalidates_ephemeral_pending_cards(tmp_path):
+    path = tmp_path / "a.db"
+    first = ApprovalService(path, b"k", clock=lambda: 100)
+    action = Action("write_file", {"path": "x", "content": "y"}, id="canonical-action")
+    request, session = first.create(action, "me", "x")
+    assert '"canonical-action"' in request.action_json
+    first.db.close()
+    second = ApprovalService(path, b"new-process-key", clock=lambda: 100)
+    assert second.db.execute("SELECT status FROM approvals WHERE id=?", (request.id,)).fetchone() == ("interrupted",)
+    with pytest.raises(ValueError):
+        second.decide(request.id, session, "approved")
