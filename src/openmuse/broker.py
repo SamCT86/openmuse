@@ -1,11 +1,11 @@
-"""Secrets broker: tools receive secrets through a side channel.
+"""Trusted-host secrets broker: in-process tools receive plaintext.
 
 The planner proposes actions with ordinary arguments only. A tool that needs a
 secret declares `secret_name`; the broker resolves it from the vault at
 execution time and injects the plaintext into the tool's `run_with_secret`
 callback, which the vault wipes after use. Secret values therefore never appear
 in action arguments, tool manifests, planner context, or the audit log - only
-the access itself is audited, by name.
+the access itself is audited, by name. This is not isolation from malicious Python tools.
 """
 
 from datetime import datetime, timezone
