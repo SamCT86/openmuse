@@ -16,6 +16,12 @@ python examples/verify_audit.py
 python -m build
 ```
 
+## A first contribution
+
+Start with an unassigned [`good first issue`](https://github.com/tahodev/openmuse/labels/good%20first%20issue). Read its acceptance criteria and say you're taking it before starting, so another volunteer doesn't duplicate your work. If it involves code, add or update a test; for docs, test the command on the platform you document. Keep unrelated cleanups out of the PR.
+
+You can run a focused check while iterating (for example, `pytest tests/test_web_chat.py -q`); run the full set above before asking for review. In the PR, link the issue, give exact reproduction or verification commands, and call out whether your change touches a trust boundary. If an issue is unclear, ask on that issue rather than guessing at permission behavior.
+
 ## Changes to trust boundaries
 
 Open an issue before changing the permission model, approvals, audit format, connector scopes, data retention, or secret handling. Describe assets, attackers, failure modes, revocation, simulation behavior, and the tests that prove fail-closed behavior. Changes to these boundaries need an ADR in `docs/adr/`, threat-model updates, tests, and maintainer approval.
