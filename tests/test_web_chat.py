@@ -53,7 +53,7 @@ def test_write_pauses_then_runs_once_after_approval(tmp_path):
     with pytest.raises(ValueError):
         session.decide(approval["request_id"], approval["session"], "approved")
     audit = [json.loads(line) for line in (tmp_path / ".openmuse/web-chat-audit.jsonl").read_text().splitlines()]
-    assert [r["status"] for r in audit] == ["blocked", "completed"]
+    assert [r["status"] for r in audit] == ["blocked", "proposed", "completed"]
 
 
 def test_denied_write_never_runs(tmp_path):
