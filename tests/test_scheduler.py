@@ -113,3 +113,22 @@ def test_claim_crash_is_unknown_until_reconciled(tmp_path):
     assert [j.id for j in second.claim_due(at(2026, 9, 17, 12, 31))] == [job.id]
     second.mark_run(job.id, at(2026, 9, 17, 12, 31), second.claim_token(job.id))
     assert second.due(at(2026, 9, 17, 12, 31)) == []
+
+
+def test_spring_gap_skips_nonexistent_wall_time():
+    schedule = CronSchedule("30 2 * * *", "America/New_York")
+    # The 2026-03-08 02:30 wall time does not exist.
+    assert schedule.next_after(at(2026, 3, 8, 6, 59)) == at(2026, 3, 9, 6, 30)
+
+
+def test_fall_fold_returns_both_utc_instants():
+    schedule = CronSchedule("30 1 * * *", "America/New_York")
+    first = schedule.next_after(at(2026, 11, 1, 5, 29))
+    assert first == at(2026, 11, 1, 5, 30)
+    assert schedule.next_after(first) == at(2026, 11, 1, 6, 30)
+    assert schedule.next_after(at(2026, 11, 1, 5, 45)) == at(2026, 11, 1, 6, 30)
+
+
+def test_cron_rejects_naive_anchor():
+    with pytest.raises(ValueError, match="timezone-aware"):
+        CronSchedule("* * * * *").next_after(datetime.fromisoformat("2026-09-17T00:00:00"))
