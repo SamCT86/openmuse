@@ -120,7 +120,7 @@
   <!-- 6 executor -> tools -->
   <path d="M 700 358 L 700 372 L 1004 372 L 1004 490 L 494 490 L 494 548" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
   <circle cx="640" cy="490" r="10" fill="#24292f"/><text x="640" y="494" text-anchor="middle" class="num">6</text>
-  <text x="656" y="494" class="edge">runs the call</text>
+  <text x="656" y="478" class="edge">runs the call</text>
 
   <!-- 7 tools -> planner (typed result) -->
   <path d="M 384 596 L 200 596 L 200 470 L 189 470 L 189 392" fill="none" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
