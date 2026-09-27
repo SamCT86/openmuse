@@ -5,10 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, ClassVar
 
-from openmuse.core import Agent
-from openmuse.models import Action, ToolResult
-from openmuse.policy import Policy, Risk
-from openmuse.tools import ManifestMixin
+from openmuse import Action, Agent, ManifestMixin, Policy, Risk, ToolResult
 
 
 @dataclass
