@@ -89,3 +89,15 @@ remains display-only and must not be used to open a file. The write tool
 checks the opened file type before truncating it. This protects its own path
 operations, not malicious in-process Python extensions or untrusted workspace
 mounts outside this process's control.
+
+## Execution deadlines
+
+`IsolatedWorker` and the default `ContainerWorker` subprocess runner enforce
+wall-clock timeout and kernel-capped stdout/stderr capture before decoding.
+`Agent.execute` still runs trusted in-process Python tools synchronously and
+cannot forcibly stop a hung tool without putting it in a process. A native
+in-process timeout would not safely kill the work; do not claim one. For
+untrusted or potentially blocking plugins, use a pinned container worker and
+bound its request/output. A timed-out external effect can be unknown: do not
+retry without reconciliation. An injected custom container runner is a test
+hook and must enforce its own capture limits.
