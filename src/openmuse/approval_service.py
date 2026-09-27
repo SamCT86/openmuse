@@ -18,9 +18,14 @@ class ApprovalRequest:
 class ApprovalService:
     def __init__(self,path:Path,session_key:bytes,clock=time.time):
         self.db=sqlite3.connect(path); self.session_key=session_key; self.clock=clock
-        self.db.execute("CREATE TABLE IF NOT EXISTS approvals(id TEXT PRIMARY KEY,action_json TEXT,identity TEXT,destination TEXT,expires_at INTEGER,status TEXT)"); self.db.commit()
+        self.db.execute("CREATE TABLE IF NOT EXISTS approvals(id TEXT PRIMARY KEY,action_json TEXT,identity TEXT,destination TEXT,expires_at INTEGER,status TEXT)")
+        # Local web chat cannot recover its in-memory pending cards/one-time tokens.
+        # Treat every old pending request as expired on process restart instead of
+        # pretending that an orphaned approval can safely execute.
+        self.db.execute("UPDATE approvals SET status='interrupted' WHERE status='pending'")
+        self.db.commit()
     def create(self,action:Action,identity:str,destination:str,ttl_seconds:int=300)->tuple[ApprovalRequest,str]:
-        request=ApprovalRequest(uuid4().hex,json.dumps({"tool":action.tool,"arguments":action.arguments},sort_keys=True),identity,destination,int(self.clock())+ttl_seconds,"pending")
+        request=ApprovalRequest(uuid4().hex,json.dumps({"id": action.id, "tool":action.tool,"arguments":action.arguments},sort_keys=True),identity,destination,int(self.clock())+ttl_seconds,"pending")
         with self.db: self.db.execute("INSERT INTO approvals VALUES(?,?,?,?,?,?)",(request.id,request.action_json,identity,destination,request.expires_at,request.status))
         return request,self._session(request.id,request.expires_at)
     def decide(self,request_id:str,session:str,decision:str)->ApprovalRequest:
