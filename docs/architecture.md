@@ -33,3 +33,15 @@ adapter. Do not describe `IsolatedWorker` as a sandbox; its process and resource
 limits do not isolate network or mounts. Web chat only registers built-in
 trusted tools. Connector declarations/grants are useful for honest connectors,
 not a security boundary against malicious in-process connector code.
+
+## Audit crash semantics
+
+The host fsyncs a default-deny intent record (action ID, registered tool name,
+argument digest, no argument/output text) before calling a tool, then writes a
+completion or failure record. A pending intent without an outcome after a crash
+is **unknown**, not safe to retry: inspect the external effect before deciding
+what happened. If the outcome write fails after the tool call, the result is
+`audit_outcome_unknown` and `retryable=False`. The audit chain is tamper-evident
+only relative to a trusted checkpoint; it is not independently anchored by
+being stored locally. Audit records can show a tool was attempted but cannot
+prove a third-party side effect completed.
