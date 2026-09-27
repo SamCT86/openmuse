@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .bounded_process import run_bounded
+
 
 @dataclass(frozen=True)
 class WorkerLimits:
@@ -48,16 +50,10 @@ class IsolatedWorker:
         self.workspace.mkdir(parents=True, exist_ok=True)
         env = {"PATH": os.environ.get("PATH", ""), "PYTHONIOENCODING": "utf-8", **(environment or {})}
         try:
-            completed = subprocess.run(
+            completed = run_bounded(
                 [sys.executable, "-I", str(self.entrypoint)],
-                input=json.dumps(request),
-                text=True,
-                capture_output=True,
-                cwd=self.workspace,
-                env=env,
-                timeout=self.limits.timeout_seconds,
-                preexec_fn=lambda: _limit_process(self.limits),
-                check=False,
+                json.dumps(request), self.limits.output_bytes, self.limits.timeout_seconds,
+                cwd=self.workspace, env=env, preexec_fn=lambda: _limit_process(self.limits),
             )
         except subprocess.TimeoutExpired as exc:
             raise TimeoutError("isolated worker timed out") from exc
