@@ -40,3 +40,7 @@ pytest -q tests/test_isolated_worker.py
 They prove that a parent secret environment variable does not cross the boundary, a timed-out child is killed and raises `TimeoutError`, oversized output is rejected, and any response other than a JSON object is rejected. A non-zero child exit also raises `RuntimeError` with bounded stderr.
 
 For the implementation and deployment limits, read [`isolated_worker.py`](../src/openmuse/isolated_worker.py) and the [threat model](threat-model.md).
+
+Child stdout/stderr are now captured in temporary files capped by the OS file-size
+limit rather than unbounded in-memory pipes. Limits apply before text decoding;
+very large outputs fail closed without exposing child content to the caller.
