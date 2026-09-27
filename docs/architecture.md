@@ -13,3 +13,23 @@ Trust boundaries: planner output and all external content are untrusted; policy,
 
 
 The production composition is `SecretVault.open(path, KeyringMasterKey())`, then one `GoogleOAuthManager` per Google account/provider-scope set. Pass `manager.access_token` to a Google connector. The master key stays in the platform credential store; the vault file contains only envelope-encrypted records and is written with owner-only permissions. A missing system credential backend is an error, never a plaintext fallback. OAuth `state` verification and the redirect listener remain embedding-host responsibilities.
+
+## Extension trust boundary (alpha)
+
+`Agent` accepts **trusted host Python code**. Its tools and connectors run in the
+host process with its filesystem, network, and credentials. Registration checks
+manifest shape and freezes the host's risk/schema view against later drift, but
+it cannot stop a malicious Python object from bypassing `run` or lying at
+registration. Do not load unreviewed Python skills or connectors into the host.
+A skill artifact (data/instructions) has no executable authority of its own.
+
+`WorkerTool` is a narrow, read-only adapter for a host-configured
+`ContainerWorker` pinned by digest. The host owns its descriptor; the worker
+receives validated JSON arguments and has no host effect RPC. The container
+profile requests no network or host mounts, but the deploying host must verify
+those controls on its runtime. Untrusted extensions needing reads from host
+services, writes, representation, or money are **not supported** by this alpha
+adapter. Do not describe `IsolatedWorker` as a sandbox; its process and resource
+limits do not isolate network or mounts. Web chat only registers built-in
+trusted tools. Connector declarations/grants are useful for honest connectors,
+not a security boundary against malicious in-process connector code.
