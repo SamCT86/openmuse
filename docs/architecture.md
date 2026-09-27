@@ -101,3 +101,15 @@ untrusted or potentially blocking plugins, use a pinned container worker and
 bound its request/output. A timed-out external effect can be unknown: do not
 retry without reconciliation. An injected custom container runner is a test
 hook and must enforce its own capture limits.
+
+## Reproducible CI dependencies
+
+CI resolves its dev dependencies against pinned, Python-specific constraints
+under `constraints/py311.txt`, `py312.txt` and `py313.txt`. These are CI
+constraints, not a universal deployment lock: users can still resolve newer
+compatible versions under `pyproject.toml` lower bounds. Security CI installs
+production dependencies with the Python 3.12 constraints and runs pip-audit.
+Recompile and review each constraints file when intentionally updating deps;
+never silently update security boundary dependencies in a routine CI run. CI
+also runs focused crash, hostile path, sibling grant, DST and output-limit
+regressions separately before its full suite.
