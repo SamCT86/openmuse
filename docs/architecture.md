@@ -66,3 +66,15 @@ is rejected by the durable redemption digest. The host must retain its ledger
 file for the grant lifetime; deleting or replacing the file discards quota
 history, so never treat it as disposable cache. The root token authority's
 in-memory replay set is still ephemeral; ledger redemption digests persist.
+
+## Job execution lifecycle (alpha)
+
+`Scheduler.claim_due` now holds a durable lease and returns a job without
+advancing `last_run`. A host obtains `claim_token(job.id)`, heartbeats while it
+runs, and calls `mark_run(job.id, ran_at, token)` only after completion. An
+expired lease is **unknown**, not automatically reclaimable, because an effect
+may have happened just before a crash. After reconciling the effect, the host
+may call `retry_unknown`; this permits a new claim. This is not a unified
+scheduler/chat/task state machine. `TaskStore` and chat transcripts still have
+separate persistence; production cross-component lifecycle and exactly-once
+external effects remain unsupported rather than promised.
