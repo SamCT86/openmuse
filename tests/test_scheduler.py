@@ -80,6 +80,9 @@ def test_claim_due_is_atomic_across_workers(tmp_path: Path):
 
     assert [claimed.id for claimed in first.claim_due(now)] == [job.id]
     assert second.claim_due(now) == []
+    token = first.claim_token(job.id)
+    assert token is not None
+    first.mark_run(job.id, now, token)
     assert [claimed.id for claimed in second.claim_due(at(2026, 9, 17, 12, 31))] == [job.id]
 
 def test_named_timezone_schedule_returns_utc():
@@ -92,3 +95,21 @@ def test_invalid_timezone_fails_closed():
     import pytest
     with pytest.raises(ZoneInfoNotFoundError):
         CronSchedule("0 9 * * *", "Not/AZone")
+
+
+def test_claim_crash_is_unknown_until_reconciled(tmp_path):
+    path = tmp_path / "jobs.db"
+    first = Scheduler(path)
+    job = first.add("* * * * *", "effectful task")
+    now = at(2026, 9, 17, 12, 30)
+    assert [j.id for j in first.claim_due(now, lease_seconds=10)] == [job.id]
+    token = first.claim_token(job.id)
+    assert token
+    second = Scheduler(path)
+    assert second.claim_due(at(2026, 9, 17, 12, 31)) == []
+    with pytest.raises(ValueError):
+        second.mark_run(job.id, now, "wrong")
+    second.retry_unknown(job.id, at(2026, 9, 17, 12, 31))
+    assert [j.id for j in second.claim_due(at(2026, 9, 17, 12, 31))] == [job.id]
+    second.mark_run(job.id, at(2026, 9, 17, 12, 31), second.claim_token(job.id))
+    assert second.due(at(2026, 9, 17, 12, 31)) == []
