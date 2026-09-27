@@ -21,16 +21,17 @@ class Agent:
         self.audit = AuditLog(audit_log)
 
     def execute(self, action: Action) -> ToolResult:
-        tool = self.registry.get(action.tool)
-        if not tool:
+        registered = self.registry.descriptor(action.tool)
+        tool = registered.tool if registered else None
+        if registered is None or tool is None:
             return ToolResult(action.id, ActionStatus.FAILED, error_code="unknown_tool")
         try:
-            validate_arguments(action.arguments, tool.manifest().get("schema"))
+            validate_arguments(action.arguments, registered.descriptor.get("schema"))
         except SchemaValidationError as exc:
             r = ToolResult(action.id, ActionStatus.FAILED, str(exc), "invalid_arguments")
             self._audit(action, r)
             return r
-        d = self.policy.check(tool.risk, action)
+        d = self.policy.check(registered.risk, action)
         if not d.allowed:
             r = ToolResult(action.id, ActionStatus.BLOCKED, d.reason, "approval_required")
         else:
