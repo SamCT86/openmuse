@@ -52,18 +52,21 @@ class CronSchedule:
         self.dow_any = fields[4] == "*"
 
     def next_after(self, moment: datetime) -> datetime:
-        """First fire time strictly after `moment`; matches standard cron OR semantics."""
-        candidate = moment.astimezone(self.timezone).replace(second=0, microsecond=0) + timedelta(minutes=1)
-        for _ in range(366 * 5):
-            if candidate.month in self.months and self._day_matches(candidate):
-                for hour in sorted(self.hours):
-                    if hour < candidate.hour:
-                        continue
-                    for minute in sorted(self.minutes):
-                        fired = candidate.replace(hour=hour, minute=minute)
-                        if fired >= candidate:
-                            return fired.astimezone(timezone.utc)
-            candidate = (candidate + timedelta(days=1)).replace(hour=0, minute=0)
+        """First matching UTC instant; nonexistent wall times never appear.
+
+        Iteration in UTC visits both instants of a repeated local minute. A
+        bounded five-year search limits pathological expressions.
+        """
+        if moment.tzinfo is None or moment.utcoffset() is None:
+            raise ValueError("cron anchor must be timezone-aware")
+        candidate = moment.astimezone(timezone.utc).replace(second=0, microsecond=0) + timedelta(minutes=1)
+        deadline = candidate + timedelta(days=366 * 5)
+        while candidate < deadline:
+            local = candidate.astimezone(self.timezone)
+            if (local.month in self.months and self._day_matches(local)
+                    and local.hour in self.hours and local.minute in self.minutes):
+                return candidate
+            candidate += timedelta(minutes=1)
         raise ValueError("schedule has no fire time within five years")
 
     def _day_matches(self, moment: datetime) -> bool:
