@@ -92,12 +92,16 @@ class Scheduler:
     def __init__(self, path: Path) -> None:
         self.db = sqlite3.connect(path)
         self.db.execute("CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, schedule TEXT, goal TEXT, last_run TEXT)")
+        columns = {row[1] for row in self.db.execute("PRAGMA table_info(jobs)")}
+        for column in ("lease_until", "claim_token"):
+            if column not in columns:
+                self.db.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
         self.db.commit()
 
     def add(self, schedule: str, goal: str) -> Job:
         CronSchedule(schedule)
         job = Job(uuid4().hex, schedule, goal, None)
-        self.db.execute("INSERT INTO jobs VALUES(?,?,?,?)", (job.id, job.schedule, job.goal, job.last_run))
+        self.db.execute("INSERT INTO jobs(id,schedule,goal,last_run) VALUES(?,?,?,?)", (job.id, job.schedule, job.goal, job.last_run))
         self.db.commit()
         return job
 
@@ -118,19 +122,66 @@ class Scheduler:
                 ready.append(job)
         return ready
 
-    def claim_due(self, now: datetime) -> list[Job]:
-        """Atomically claim due jobs so concurrent workers cannot double-run them."""
+    def claim_due(self, now: datetime, lease_seconds: int = 300) -> list[Job]:
+        """Lease due jobs atomically; expired claims are unknown and need review."""
+        if lease_seconds < 1:
+            raise ValueError("lease must be positive")
         self.db.execute("BEGIN IMMEDIATE")
         try:
-            ready = self.due(now)
-            for job in ready:
-                self.db.execute("UPDATE jobs SET last_run=? WHERE id=?", (now.isoformat(), job.id))
+            ready = []
+            for job in self.due(now):
+                lease = self.db.execute("SELECT lease_until, claim_token FROM jobs WHERE id=?", (job.id,)).fetchone()
+                if lease[1] is not None:
+                    # An expired lease may have effected work before crashing.
+                    # Do not automatically duplicate an unknown external effect.
+                    continue
+                token = uuid4().hex
+                until = (now + timedelta(seconds=lease_seconds)).isoformat()
+                self.db.execute("UPDATE jobs SET lease_until=?, claim_token=? WHERE id=?", (until, token, job.id))
+                ready.append(job)
             self.db.commit()
             return ready
         except Exception:
             self.db.rollback()
             raise
 
-    def mark_run(self, job_id: str, ran_at: datetime) -> None:
-        self.db.execute("UPDATE jobs SET last_run=? WHERE id=?", (ran_at.isoformat(), job_id))
-        self.db.commit()
+    def heartbeat(self, job_id: str, now: datetime, claim_token: str, lease_seconds: int = 300) -> None:
+        if lease_seconds < 1:
+            raise ValueError("lease must be positive")
+        until = (now + timedelta(seconds=lease_seconds)).isoformat()
+        with self.db:
+            changed = self.db.execute(
+                "UPDATE jobs SET lease_until=? WHERE id=? AND claim_token=? AND lease_until>?",
+                (until, job_id, claim_token, now.isoformat()),
+            ).rowcount
+        if not changed:
+            raise ValueError("claim missing or expired")
+
+    def claim_token(self, job_id: str) -> str | None:
+        row = self.db.execute("SELECT claim_token FROM jobs WHERE id=?", (job_id,)).fetchone()
+        return row[0] if row else None
+
+    def mark_run(self, job_id: str, ran_at: datetime, claim_token: str | None = None) -> None:
+        with self.db:
+            if claim_token is None:
+                current = self.db.execute("SELECT claim_token FROM jobs WHERE id=?", (job_id,)).fetchone()
+                if current is None or current[0] is not None:
+                    raise ValueError("claim token required for leased job")
+                self.db.execute("UPDATE jobs SET last_run=? WHERE id=?", (ran_at.isoformat(), job_id))
+            else:
+                changed = self.db.execute(
+                    "UPDATE jobs SET last_run=?, lease_until=NULL, claim_token=NULL WHERE id=? AND claim_token=?",
+                    (ran_at.isoformat(), job_id, claim_token),
+                ).rowcount
+                if not changed:
+                    raise ValueError("claim token mismatch")
+
+    def retry_unknown(self, job_id: str, now: datetime) -> None:
+        """Host calls this only after reconciling any possibly completed effect."""
+        with self.db:
+            changed = self.db.execute(
+                "UPDATE jobs SET claim_token=NULL,lease_until=NULL WHERE id=? AND claim_token IS NOT NULL AND lease_until<=?",
+                (job_id, now.isoformat()),
+            ).rowcount
+        if not changed:
+            raise ValueError("no expired claim to reconcile")
