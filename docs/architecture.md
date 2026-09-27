@@ -55,3 +55,14 @@ approval links cannot run after a restart. The database stores the canonical
 action ID with tool/arguments and checks it against the pending card. In-flight
 external effects are not replayed or retried automatically; a production host
 needs durable request recovery, authenticated identity, and reconciliation.
+
+## Delegation quotas
+
+A finite `Grant.max_uses` requires a host-owned `GrantLedger` backed by SQLite.
+A descendant carries all ancestor budget IDs, and every redemption consumes
+all applicable budgets in one immediate transaction. Siblings therefore cannot
+reset a parent's quota by creating new child objects. Reusing the same token
+is rejected by the durable redemption digest. The host must retain its ledger
+file for the grant lifetime; deleting or replacing the file discards quota
+history, so never treat it as disposable cache. The root token authority's
+in-memory replay set is still ephemeral; ledger redemption digests persist.
