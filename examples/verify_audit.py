@@ -1,7 +1,6 @@
 """Verify an OpenMuse JSONL audit hash chain without trusting the runtime."""
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
 
@@ -14,7 +13,8 @@ def main() -> int:
     args = parser.parse_args()
     valid, records, error = verify_chain(Path(args.path))
     if valid:
-        audit_records = [json.loads(line) for line in Path(args.path).read_text(encoding="utf-8").splitlines()]
+        with Path(args.path).open(encoding="utf-8") as source:
+            audit_records = [json.loads(line) for line in source]
         pending = next(
             (record["action"] for record in audit_records if record.get("error_code") == "approval_required"),
             None,
@@ -32,7 +32,7 @@ def main() -> int:
         if pending is None or executed is None or pending != executed:
             print("INVALID: approved action does not match executed action")
             return 1
-        action_digest = hashlib.sha256(json.dumps(pending, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        action_digest = pending["arguments_sha256"]
         print(f"VERIFIED: {records} records form an intact hash chain")
         print(f"VERIFIED: approved action == executed action ({action_digest[:16]}...)")
         return 0
