@@ -129,11 +129,11 @@ def test_scope_denial_and_allowance_are_audited(tmp_path: Path):
     ok, count, error = verify_chain(audit_path)
     assert ok, error
     records = [json.loads(line) for line in audit_path.read_text().splitlines()]
-    assert count == 2
+    assert count == 4
     assert records[0]["action"]["tool"] == "mail:list"
-    assert records[0]["status"] == "failed"
-    assert records[0]["error_code"] == "ScopeDenied"
-    assert records[1]["status"] == "completed"
+    assert records[0]["status"] == "proposed"
+    assert records[1]["error_code"] == "ScopeDenied"
+    assert [r["status"] for r in records] == ["proposed", "failed", "proposed", "completed"]
 
 
 def test_read_only_connector_contract():
