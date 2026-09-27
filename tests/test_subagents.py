@@ -5,7 +5,7 @@ import pytest
 from openmuse.approvals import ApprovalAuthority
 from openmuse.audit import AuditLog, verify_chain
 from openmuse.models import Action
-from openmuse.subagents import DelegatedAuthority, Grant, GrantError
+from openmuse.subagents import DelegatedAuthority, Grant, GrantError, GrantLedger
 
 SECRET = b"root-secret"
 
@@ -44,9 +44,9 @@ def test_argument_constraints_enforced():
     assert not child.verify(other, root.issue(other))
 
 
-def test_max_uses_enforced():
+def test_max_uses_enforced(tmp_path):
     root, _ = root_and_action()
-    child = DelegatedAuthority(root, Grant(tools=frozenset({"fetch_url"}), max_uses=1))
+    child = DelegatedAuthority(root, Grant(tools=frozenset({"fetch_url"}), max_uses=1), ledger=GrantLedger(tmp_path / "grants.db"))
     first = Action("fetch_url", {"url": "https://a.example"}, id="a")
     second = Action("fetch_url", {"url": "https://b.example"}, id="b")
     assert child.verify(first, root.issue(first))
@@ -59,10 +59,10 @@ def test_expired_grant_fails_closed():
     assert not child.verify(action, root.issue(action))
 
 
-def test_narrowing_must_be_strict():
+def test_narrowing_must_be_strict(tmp_path):
     root, _ = root_and_action()
     parent_grant = Grant(tools=frozenset({"fetch_url", "read_file"}), max_uses=4)
-    child = DelegatedAuthority(root, parent_grant)
+    child = DelegatedAuthority(root, parent_grant, ledger=GrantLedger(tmp_path / "grants.db"))
 
     with pytest.raises(GrantError):
         child.narrow(parent_grant), "equal grants are not narrower"
@@ -79,11 +79,12 @@ def test_narrowing_must_be_strict():
         narrower.narrow(Grant(tools=frozenset({"fetch_url"}), max_uses=2))
 
 
-def test_parent_constraints_must_survive_narrowing():
+def test_parent_constraints_must_survive_narrowing(tmp_path):
     root, _ = root_and_action()
     parent = DelegatedAuthority(
         root,
         Grant(tools=frozenset({"fetch_url"}), constraints={"fetch_url": {"url": "https://example.com"}}),
+        ledger=GrantLedger(tmp_path / "grants.db"),
     )
     with pytest.raises(GrantError):
         parent.narrow(Grant(tools=frozenset({"fetch_url"}), max_uses=1)), "dropping a constraint widens"
@@ -103,3 +104,26 @@ def test_delegation_is_audited(tmp_path):
     DelegatedAuthority(root, Grant(tools=frozenset({"fetch_url"})), audit=audit)
     ok, count, error = verify_chain(tmp_path / "audit.jsonl")
     assert ok and count == 1, error
+
+
+def test_siblings_share_parent_budget_concurrently(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    root = ApprovalAuthority(SECRET)
+    parent = DelegatedAuthority(
+        root, Grant(tools=frozenset({"fetch_url", "read_file"}), max_uses=3),
+        ledger=GrantLedger(tmp_path / "grants.db"),
+    )
+    siblings = [parent.narrow(Grant(tools=frozenset({"fetch_url"}), max_uses=3)) for _ in range(8)]
+    actions = [Action("fetch_url", {"url": f"https://{i}.example"}) for i in range(8)]
+    tokens = [root.issue(action) for action in actions]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda triple: triple[0].verify(*triple[1:]), zip(siblings, actions, tokens)))
+    assert sum(results) == 3
+    assert not siblings[0].verify(actions[0], tokens[0])
+
+
+def test_quota_requires_durable_ledger():
+    root, _ = root_and_action()
+    with pytest.raises(GrantError, match="durable"):
+        DelegatedAuthority(root, Grant(tools=frozenset({"fetch_url"}), max_uses=1))
