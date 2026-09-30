@@ -30,7 +30,9 @@ def run_demo(audit_log: Path) -> ToolResult:
 
 
 def main() -> int:
-    with TemporaryDirectory() as tmp:
+    # Use the workspace rather than Windows TEMP, which may be an 8.3 alias.
+    # The native backend deliberately refuses aliases and reparse ancestors.
+    with TemporaryDirectory(prefix="openmuse-typed-", dir=Path.cwd()) as tmp:
         result = run_demo(Path(tmp) / "audit.jsonl")
     print(f"{result.status.value}: {result.output}")
     return 0

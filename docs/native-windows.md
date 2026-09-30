@@ -32,7 +32,9 @@ are deliberately rejected rather than resolved.
 
 Windows-specific validation rejects backslash input separators, `:`, UNC/device
 paths, absolute paths, empty/dot/dot-dot components, trailing dot/space aliases,
-control characters, tilde/8.3 aliases, CONIN$/CONOUT$ and reserved DOS names. Unicode UTF-16 names are supported.
+control characters, tilde/8.3 aliases, CONIN$/CONOUT$ and reserved DOS names.
+This includes aliases in workspace/audit ancestors. Use a long-name path for
+the working directory; a Windows TEMP value containing RUNNER~1 is refused. Unicode UTF-16 names are supported.
 
 ## Audit boundary
 
