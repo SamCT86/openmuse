@@ -1,0 +1,3 @@
+[run]
+# Native-only backend is measured in the native Windows CI job, not hidden as POSIX coverage.
+omit = src/openmuse/windows_fs.py

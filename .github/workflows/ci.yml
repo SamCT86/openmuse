@@ -20,6 +20,7 @@ jobs:
       - run: python scripts/markdown_links.py
       - name: Full suite with hang diagnostics
         timeout-minutes: 5
+        env: {COVERAGE_RCFILE: .coveragerc-posix}
         run: pytest -v -o faulthandler_timeout=60 --cov=openmuse --cov-branch --cov-report=term-missing --cov-fail-under=85
       - name: Build and smoke-test installed wheel
         run: |
