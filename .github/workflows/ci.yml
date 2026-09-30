@@ -25,6 +25,7 @@ jobs:
           python -m venv /tmp/openmuse-wheel-smoke
           /tmp/openmuse-wheel-smoke/bin/pip install dist/*.whl
           /tmp/openmuse-wheel-smoke/bin/openmuse --help
+          PATH="/tmp/openmuse-wheel-smoke/bin:$PATH" python scripts/chat_smoke.py
       - run: python examples/e2e_demo.py --auto-approve
       - run: python examples/verify_audit.py
       - run: python -m build
