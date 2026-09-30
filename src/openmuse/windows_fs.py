@@ -89,7 +89,7 @@ def components(raw: str) -> list[str]:
 def _require() -> None:
     if os.name != "nt":
         raise OSError("Windows backend requires native Windows")
-    if platform.machine().lower() not in {"amd64", "x86_64"} or sys.getwindowsversion().build < 22000:
+    if platform.machine().lower() not in {"amd64", "x86_64"} or getattr(sys, "getwindowsversion")().build < 22000:
         raise OSError("native backend requires Windows 11 x64 or newer equivalent Server builds")
 
 
