@@ -16,7 +16,7 @@ jobs:
           $env:PYTHONUTF8 = "1"
           python -m pip install -e '.[dev]'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -m pytest -v -o faulthandler_timeout=60 --cov=openmuse.windows_fs --cov-branch --cov-report=term-missing --cov-fail-under=85 tests/test_windows_fs.py tests/test_core.py tests/test_audit_boundaries.py tests/test_approvals.py tests/test_web_chat.py tests/test_chat_entrypoint.py tests/test_demo.py tests/test_version.py tests/test_packaging.py
+          python -m pytest -v -o faulthandler_timeout=60 --cov=openmuse.windows_fs --cov-branch --cov-report=term-missing --cov-fail-under=85 tests --ignore=tests/test_path_race.py --ignore=tests/test_bounded_process.py --ignore=tests/test_isolated_worker.py --ignore=tests/test_isolated_worker_demo.py --ignore=tests/test_secret_service.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python examples/e2e_demo.py --auto-approve
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

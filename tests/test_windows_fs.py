@@ -218,3 +218,23 @@ def test_native_unsupported_volume_and_directory_type_refused(tmp_path, monkeypa
     monkeypatch.setattr(backend, "volume_info", lambda *args: False)
     with pytest.raises(OSError):
         ReadFile(tmp_path).run("directory")
+
+
+@native
+def test_native_hardlink_creation_blocked_while_write_handle_held(tmp_path, monkeypatch):
+    import openmuse.windows_fs as backend
+    original = backend._relative
+    (tmp_path / "note").write_text("original")
+    attempts = []
+
+    def racing(parent, name, **kwargs):
+        handle = original(parent, name, **kwargs)
+        if name == "note":
+            with pytest.raises(OSError):
+                os.link(tmp_path / "note", tmp_path / "alias")
+            attempts.append(True)
+        return handle
+
+    monkeypatch.setattr(backend, "_relative", racing)
+    WriteFile(tmp_path).run("note", "inside")
+    assert attempts and not (tmp_path / "alias").exists()
