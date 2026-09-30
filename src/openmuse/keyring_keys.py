@@ -16,6 +16,34 @@ class MasterKeyError(RuntimeError):
     pass
 
 
+# OS credential stores we trust: the platform vaults only. Plaintext-file and
+# in-memory keyring backends (keyrings.alt and similar) report a positive
+# priority, so the priority check alone cannot keep them out.
+_OS_STORE_BACKENDS = {
+    ("keyring.backends.Windows", "WinVaultKeyring"),
+    ("keyring.backends.macOS", "Keyring"),
+    ("keyring.backends.SecretService", "Keyring"),
+    ("keyring.backends.libsecret", "Keyring"),
+    ("keyring.backends.kwallet", "DBusKeyring"),
+}
+
+
+def _is_os_store(backend: object) -> bool:
+    """True only for known OS credential-store backends.
+
+    A ChainerBackend qualifies only when every backend it can fall through to
+    is itself an OS store - otherwise a degraded desktop session silently
+    lands on a plaintext member.
+    """
+    cls = type(backend)
+    if (cls.__module__, cls.__name__) in _OS_STORE_BACKENDS:
+        return True
+    chain = getattr(backend, "backends", None)  # keyring ChainerBackend
+    if isinstance(chain, (list, tuple)) and chain:
+        return all(_is_os_store(item) for item in chain)
+    return False
+
+
 @dataclass(frozen=True)
 class KeyringMasterKey:
     """Load or create a 256-bit vault key in the system credential store."""
@@ -58,6 +86,10 @@ def system_credential_store() -> CredentialStore:
         raise MasterKeyError("install the keyring dependency to use OS-backed keys") from error
     backend = keyring.get_keyring()
     priority = getattr(backend, "priority", 0)
-    if priority <= 0:
-        raise MasterKeyError("no usable OS credential-store backend is available")
+    if priority <= 0 or not _is_os_store(backend):
+        raise MasterKeyError(
+            "no usable OS credential-store backend is available "
+            f"(found {type(backend).__module__}.{type(backend).__name__}); "
+            "plaintext-file and in-memory keyring backends are not accepted"
+        )
     return keyring

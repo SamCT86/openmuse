@@ -10,10 +10,29 @@ not just write access to the audit file.
 
 The key never lives in the workspace or the repository. `KeyringAuditKeys`
 stores it in the OS credential store through the `keyring` package: macOS
-Keychain, Windows Credential Manager, or libsecret on Linux. The store holds a
-small JSON document (`{"current": key_id, "keys": {key_id: base64 key}}`); a key
-id is the first 16 hex characters of the key's SHA-256, which identifies a key
-without exposing it.
+Keychain, Windows Credential Manager, or libsecret on Linux. Only those OS
+stores are accepted - the backend is checked against an allowlist, because
+plaintext-file and in-memory keyring backends report a positive priority and
+a priority check alone would wave them through.
+
+Each key is its own credential (`audit-hmac-key.<key id>`) and a small pointer
+credential (`audit-hmac-key.current`) names the current key id. A key id is
+the first 16 hex characters of the key's SHA-256, which identifies a key
+without exposing it. Per-key credentials serve two purposes:
+
+- **Size.** Windows Credential Manager caps a credential at 2560 UTF-16
+  bytes; a single growing JSON document hits that cap after roughly 18
+  rotations. Every credential here stays far below the limit, so rotation
+  has no practical count bound beyond the store's entry capacity.
+- **Concurrency.** OS stores offer no compare-and-swap, so a shared
+  read-modify-write document loses keys when two rotations race (the loser's
+  overwrite drops the winner's key, orphaning the records it covers). With
+  per-key credentials writers never share mutable state: each rotation writes
+  a fresh, uniquely named credential, moves the pointer, then re-reads it and
+  converges on the winner. Every key ever handed out stays resolvable.
+
+`FileAuditKeys` serializes its document read-modify-write with a sibling
+`.lock` file (an OS-held lock, released automatically if a writer dies).
 
 The runtime fails closed when no credential store is available: append raises
 `AuditKeyError` before the audit file is even created, and verification reports
@@ -50,7 +69,13 @@ record.
 `store.rotate()` retires the current key and generates a fresh one; new records
 use the new key id. Retired keys stay in the store so existing history remains
 verifiable. Deleting a retired key makes the records it covers unverifiable
-("unknown audit key id"), so rotation never prunes.
+("unknown audit key id"), so rotation never prunes. Rotation has no count
+limit: each key is a separate credential, so the Windows Credential Manager
+credential-size cap does not apply to the store as a whole.
+
+Records are caller data plus chain fields; the chain fields (`hash`,
+`previous_hash`, `chain`, `key_id`) are reserved. `append` rejects a record
+that sets any of them rather than overwriting or trusting the caller's value.
 
 ## Residual limits
 

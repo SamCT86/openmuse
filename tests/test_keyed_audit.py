@@ -303,3 +303,235 @@ def test_unknown_chain_algorithm_fails(tmp_path):
     tmp_path.joinpath("audit").write_text(json.dumps(record) + "\n")
     ok, _, error = verify_chain(tmp_path / "audit")
     assert not ok and error.startswith("unknown chain algorithm")
+
+
+# --- Finding: caller-supplied chain fields must never reach a record -------
+
+
+@pytest.mark.parametrize("field", ["hash", "previous_hash", "chain", "key_id"])
+def test_append_rejects_reserved_fields(tmp_path, field):
+    log = AuditLog(tmp_path / "audit", key_store=MemoryAuditKeys())
+    with pytest.raises(ValueError, match="reserved field"):
+        log.append({"event": "x", field: "injected"})
+    assert not (tmp_path / "audit").exists()
+
+
+def test_legacy_writer_also_rejects_reserved_fields(tmp_path):
+    # The pre-keying SHA writer shared the hole: an injected chain/key_id made
+    # a legacy record verify as keyed and fail. The reject covers both writers.
+    log = AuditLog.legacy(tmp_path / "audit")
+    with pytest.raises(ValueError, match="reserved field"):
+        log.append({"event": "x", "chain": "hmac-sha256", "key_id": "0" * 16})
+    log.append({"event": "clean"})
+    assert verify_chain(tmp_path / "audit") == (True, 1, None)
+
+
+# --- Finding: WinError 32 retry is limited to handle acquisition -----------
+
+
+class _FlakyHandle:
+    """Write lands; flush then fails as a post-write sharing violation."""
+
+    def __init__(self, handle):
+        self._handle = handle
+
+    def __getattr__(self, name):
+        return getattr(self._handle, name)
+
+    def flush(self):
+        self._handle.flush()
+        error = PermissionError(13, "being used by another process")
+        error.winerror = 32
+        raise error
+
+
+def _enter_failing_stream(error_factory, real_stream, failures):
+    import contextlib
+
+    state = {"calls": 0}
+
+    @contextlib.contextmanager
+    def fake_stream(path):
+        state["calls"] += 1
+        if state["calls"] <= failures:
+            raise error_factory()
+        with real_stream(path) as handle:
+            yield handle
+
+    return fake_stream, state
+
+
+def _sharing_violation():
+    error = PermissionError(13, "being used by another process")
+    error.winerror = 32
+    return error
+
+
+def test_sharing_violation_at_open_is_retried(tmp_path, monkeypatch):
+    from openmuse import audit
+
+    fake, state = _enter_failing_stream(_sharing_violation, audit._append_stream, 2)
+    monkeypatch.setattr(audit, "_append_stream", fake)
+    AuditLog(tmp_path / "audit", key_store=MemoryAuditKeys()).append({"event": "one"})
+    assert state["calls"] == 3
+    assert len(read_records(tmp_path / "audit")) == 1
+
+
+def test_sharing_violation_gives_up_after_four_attempts(tmp_path, monkeypatch):
+    from openmuse import audit
+
+    fake, state = _enter_failing_stream(_sharing_violation, audit._append_stream, 99)
+    monkeypatch.setattr(audit, "_append_stream", fake)
+    with pytest.raises(PermissionError):
+        AuditLog(tmp_path / "audit", key_store=MemoryAuditKeys()).append({"event": "one"})
+    assert state["calls"] == 4
+    assert not (tmp_path / "audit").exists()
+
+
+def test_other_open_errors_are_not_retried(tmp_path, monkeypatch):
+    from openmuse import audit
+
+    def plain_permission_error():
+        return PermissionError(13, "access denied")  # no winerror
+
+    fake, state = _enter_failing_stream(plain_permission_error, audit._append_stream, 1)
+    monkeypatch.setattr(audit, "_append_stream", fake)
+    with pytest.raises(PermissionError, match="access denied"):
+        AuditLog(tmp_path / "audit", key_store=MemoryAuditKeys()).append({"event": "one"})
+    assert state["calls"] == 1
+
+
+def test_post_write_error_fails_without_retry_or_duplicate(tmp_path, monkeypatch):
+    import contextlib
+
+    from openmuse import audit
+
+    real_stream = audit._append_stream
+    state = {"calls": 0}
+
+    @contextlib.contextmanager
+    def fake_stream(path):
+        state["calls"] += 1
+        with real_stream(path) as handle:
+            yield _FlakyHandle(handle)
+
+    monkeypatch.setattr(audit, "_append_stream", fake_stream)
+    with pytest.raises(PermissionError):
+        AuditLog(tmp_path / "audit", key_store=MemoryAuditKeys()).append({"event": "one"})
+    # One attempt only: the record may already be on disk, so retrying would
+    # duplicate it. The single record written before the failure stays.
+    assert state["calls"] == 1
+    assert len(read_records(tmp_path / "audit")) == 1
+
+
+# --- Finding: key stores must not lose keys under concurrency --------------
+
+
+def test_concurrent_file_store_rotations_never_lose_a_key(tmp_path):
+    import threading
+
+    store = FileAuditKeys(tmp_path / "keys.json")
+    ids, lock = [], threading.Lock()
+
+    def worker():
+        key_id, _ = store.rotate()
+        with lock:
+            ids.append(key_id)
+
+    threads = [threading.Thread(target=worker) for _ in range(16)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert len(set(ids)) == 16
+    for key_id in ids:
+        assert store.resolve(key_id) is not None
+
+
+class _SharedFakeKeyring:
+    """Thread-safe in-memory credential store."""
+
+    def __init__(self):
+        import threading
+
+        self.values = {}
+        self.lock = threading.Lock()
+
+    def get_password(self, service, account):
+        with self.lock:
+            return self.values.get((service, account))
+
+    def set_password(self, service, account, value):
+        with self.lock:
+            self.values[(service, account)] = value
+
+
+def test_keyring_store_uses_one_credential_per_key_plus_pointer():
+    backend = _SharedFakeKeyring()
+    store = KeyringAuditKeys(backend=backend)
+    key_id, _key = store.current()
+    new_id, _ = store.rotate()
+    accounts = {account for (_service, account) in backend.values}
+    assert accounts == {
+        "audit-hmac-key.current",
+        f"audit-hmac-key.{key_id}",
+        f"audit-hmac-key.{new_id}",
+    }
+    assert backend.values[("openmuse-agent", "audit-hmac-key.current")] == new_id
+
+
+def test_keyring_store_stays_small_after_many_rotations():
+    # Windows Credential Manager caps a credential at 2560 UTF-16 bytes; the
+    # old single-document layout exceeded it after ~18 rotations. Per-key
+    # credentials keep every stored value tiny regardless of rotation count.
+    backend = _SharedFakeKeyring()
+    store = KeyringAuditKeys(backend=backend)
+    ids = [store.rotate()[0] for _ in range(40)]
+    assert max(len(value) for value in backend.values.values()) < 100
+    for key_id in ids:
+        assert store.resolve(key_id) is not None
+
+
+def test_concurrent_keyring_rotations_never_lose_a_key():
+    import threading
+
+    store = KeyringAuditKeys(backend=_SharedFakeKeyring())
+    ids, lock = [], threading.Lock()
+
+    def worker():
+        key_id, _ = store.rotate()
+        with lock:
+            ids.append(key_id)
+
+    threads = [threading.Thread(target=worker) for _ in range(16)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    for key_id in ids:
+        assert store.resolve(key_id) is not None
+    pointer, key = store.current()
+    assert store.resolve(pointer) == key
+
+
+def test_keyring_pointer_to_missing_key_fails_closed():
+    backend = _SharedFakeKeyring()
+    store = KeyringAuditKeys(backend=backend)
+    store.current()
+    backend.values[("openmuse-agent", "audit-hmac-key.current")] = "f" * 16
+    with pytest.raises(AuditKeyError, match="current key is missing"):
+        store.current()
+
+
+def test_malformed_key_id_is_a_plain_miss():
+    store = KeyringAuditKeys(backend=_SharedFakeKeyring())
+    store.current()
+    assert store.resolve("../escape") is None
+    assert store.resolve("Z" * 16) is None
+
+
+def test_keyring_store_rejects_corrupt_key_credential():
+    import base64
+
+    backend = _SharedFakeKeyring()
+    store = KeyringAuditKeys(backend=backend)
+    key_id, _ = store.current()
+    backend.values[("openmuse-agent", f"audit-hmac-key.{key_id}")] = base64.urlsafe_b64encode(b"tiny").decode()
+    with pytest.raises(AuditKeyError, match="corrupt"):
+        store.resolve(key_id)

@@ -55,9 +55,16 @@ Native file/audit creation inherits directory ACLs; it does not match POSIX
 0o600 privacy. Keep workspace and audit directories private using Windows ACLs.
 This backend does not enforce confidentiality against other local accounts.
 SecretVault, MemoryStore and secret-service stay unsupported until ACL privacy
-is implemented. Antivirus/indexer sharing violations at handle open fail closed
-without retry. The 10-second audit timeout covers acquired-handle lock contention,
-not failed opens; callers may retry the whole operation after resolving contention.
+is implemented.
+
+A Win32 sharing violation (error 32) while acquiring the audit handle -
+antivirus, an indexer, or a concurrent appender holding the file - is retried
+with 50/100/150 ms backoff, at most 3 retries (4 attempts in total). Retrying
+is safe because the failure happens before any byte is written. Any error at
+or after the write - the write itself, flush, sync, or unlock - fails
+immediately without retry, because the record may already be on disk and a
+retry would duplicate it. The 10-second audit lock timeout covers contention
+on an acquired handle (error 33), not failed opens.
 
 ## Gates and limitations
 

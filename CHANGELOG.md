@@ -6,6 +6,12 @@
 - Fail-closed key handling: append raises `AuditKeyError` before touching the audit file and verification fails when no credential store is available; no silent fallback to unkeyed chains. `OPENMUSE_AUDIT_KEY_FILE` selects an explicit owner-only key file for containers, demos, and CI (not a security boundary).
 - Backward compatibility: pre-keying unkeyed chains still verify without a key; a mixed legacy-to-keyed chain verifies with a single boundary, and the first keyed record anchors the legacy head. `verify_chain(..., require_keyed=True)` rejects any unkeyed record for fully keyed deployments.
 - Key rotation via the key store: retired keys are kept so history stays verifiable; unknown key ids fail verification.
+- Independent-review hardening of the keyed chain:
+  - The credential-store backend is checked against an OS-store allowlist (macOS Keychain, Windows Credential Manager, Secret Service / libsecret, KWallet); plaintext-file and in-memory keyring backends report a positive priority and are now rejected instead of passing the priority check.
+  - `KeyringAuditKeys` stores one credential per key plus a small current-key pointer instead of a single growing JSON document. A document hit the Windows Credential Manager 2560-byte credential cap after ~18 rotations, and concurrent rotations could lose a key through read-modify-write overwrites; per-key credentials remove both failure modes (no practical rotation bound, no shared mutable state, writers converge by re-reading the pointer).
+  - `FileAuditKeys` serializes its document read-modify-write with a sibling OS-held lock file.
+  - The Win32 sharing-violation (error 32) append retry now applies only while acquiring the audit handle, before any byte is written; errors at or after the write fail immediately so a record can never be duplicated. `docs/native-windows.md` matches this behavior.
+  - `append` rejects caller-supplied chain fields (`hash`, `previous_hash`, `chain`, `key_id`) on both the keyed and legacy writers; an injected `chain`/`key_id` previously made a record fail verification.
 - Documented in `docs/keyed-audit.md`; trust-boundary wording updated in `docs/architecture.md`, `docs/threat-model.md`, `docs/native-windows.md`, `docs/audit-anchoring.md`, `SECURITY.md`, and `README.md`.
 
 ## 0.4.0a0 (2026-09-30)

@@ -24,6 +24,7 @@ import json
 import os
 import secrets
 import stat
+import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol
@@ -32,10 +33,13 @@ from .keyring_keys import CredentialStore, MasterKeyError, system_credential_sto
 
 SENSITIVE = {"password", "token", "secret", "authorization", "api_key", "cookie"}
 ZERO = "0" * 64
+_RESERVED_RECORD_FIELDS = {"hash", "previous_hash", "chain", "key_id"}
 KEYED_ALGORITHM = "hmac-sha256"
 KEY_FILE_ENV = "OPENMUSE_AUDIT_KEY_FILE"
 _KEYRING_SERVICE = "openmuse-agent"
-_KEYRING_ACCOUNT = "audit-hmac-keys"
+_KEYRING_POINTER_ACCOUNT = "audit-hmac-key.current"
+_KEYRING_KEY_PREFIX = "audit-hmac-key."
+_KEY_ID_LENGTH = 16
 
 
 class AuditKeyError(RuntimeError):
@@ -58,8 +62,25 @@ class AuditKeyStore(Protocol):
         ...
 
 
+class _SharingViolation(PermissionError):
+    """Win32 sharing violation (error 32) while acquiring the audit handle.
+
+    Raised only for failures before any byte is written, so retrying the
+    whole append cannot duplicate a record. Only Win32 errors carry a
+    ``winerror`` of 32, which keeps the retry Windows-specific.
+    """
+
+
 def _fingerprint(key: bytes) -> str:
-    return hashlib.sha256(key).hexdigest()[:16]
+    return hashlib.sha256(key).hexdigest()[:_KEY_ID_LENGTH]
+
+
+def _valid_key_id(key_id: object) -> bool:
+    return (
+        isinstance(key_id, str)
+        and len(key_id) == _KEY_ID_LENGTH
+        and all(char in "0123456789abcdef" for char in key_id)
+    )
 
 
 class _DocKeyStore:
@@ -70,6 +91,11 @@ class _DocKeyStore:
 
     def _write_text(self, text: str, exclusive: bool = False) -> None:
         raise NotImplementedError
+
+    @contextlib.contextmanager
+    def _mutation_lock(self):
+        """Serialize one whole read-modify-write across processes."""
+        yield
 
     def _load(self) -> dict[str, Any]:
         text = self._read_text()
@@ -90,26 +116,28 @@ class _DocKeyStore:
         self._write_text(json.dumps({"current": doc["current"], "keys": encoded}, sort_keys=True), exclusive=exclusive)
 
     def current(self) -> tuple[str, bytes]:
-        doc = self._load()
-        if doc["current"] is None:
+        with self._mutation_lock():
+            doc = self._load()
+            if doc["current"] is None:
+                key = secrets.token_bytes(32)
+                key_id = _fingerprint(key)
+                doc["keys"][key_id] = key
+                doc["current"] = key_id
+                try:
+                    self._save(doc, exclusive=True)
+                except FileExistsError:
+                    doc = self._load()  # a concurrent creator won; use its key
+            return doc["current"], doc["keys"][doc["current"]]
+
+    def rotate(self) -> tuple[str, bytes]:
+        with self._mutation_lock():
+            doc = self._load()
             key = secrets.token_bytes(32)
             key_id = _fingerprint(key)
             doc["keys"][key_id] = key
             doc["current"] = key_id
-            try:
-                self._save(doc, exclusive=True)
-            except FileExistsError:
-                doc = self._load()  # a concurrent creator won; use its key
-        return doc["current"], doc["keys"][doc["current"]]
-
-    def rotate(self) -> tuple[str, bytes]:
-        doc = self._load()
-        key = secrets.token_bytes(32)
-        key_id = _fingerprint(key)
-        doc["keys"][key_id] = key
-        doc["current"] = key_id
-        self._save(doc)
-        return key_id, key
+            self._save(doc)
+            return key_id, key
 
     def resolve(self, key_id: str) -> bytes | None:
         return self._load()["keys"].get(key_id)
@@ -130,11 +158,27 @@ def _decode_key(raw: str) -> bytes:
     return key
 
 
-class KeyringAuditKeys(_DocKeyStore):
+class KeyringAuditKeys:
     """Audit-chain keys in the OS credential store; the only production store.
 
-    Retired keys stay in the store so rotated history remains verifiable; deleting
-    them invalidates verification of the records they cover.
+    Every key is its own credential (``audit-hmac-key.<key id>``) and a small
+    pointer credential (``audit-hmac-key.current``) names the current key id.
+    A single growing JSON document would hit backend size caps - Windows
+    Credential Manager rejects credentials over 2560 UTF-16 bytes, which a
+    shared document reaches after roughly 18 rotations - and per-key
+    credentials keep each stored value far below any such limit.
+
+    Per-key credentials also make concurrent updates safe. OS stores offer no
+    compare-and-swap, so a read-modify-write over one shared document loses
+    keys when two rotations race: the loser's overwrite drops the winner's
+    key and the records it covers become unverifiable. Here writers never
+    share mutable state: each rotation writes a fresh, uniquely named key
+    credential (two writers can never clobber each other), moves the pointer,
+    then re-reads it and converges on the winner. A key already handed out
+    stays resolvable regardless of the pointer's final value.
+
+    Retired keys stay in the store so rotated history remains verifiable;
+    deleting them invalidates verification of the records they cover.
     """
 
     def __init__(self, backend: CredentialStore | None = None) -> None:
@@ -148,13 +192,66 @@ class KeyringAuditKeys(_DocKeyStore):
                 ) from error
         self._backend = backend
 
-    def _read_text(self) -> str | None:
-        return self._backend.get_password(_KEYRING_SERVICE, _KEYRING_ACCOUNT)
+    def _pointer(self) -> str | None:
+        return self._backend.get_password(_KEYRING_SERVICE, _KEYRING_POINTER_ACCOUNT)
 
-    def _write_text(self, text: str, exclusive: bool = False) -> None:
-        self._backend.set_password(_KEYRING_SERVICE, _KEYRING_ACCOUNT, text)
-        if self._backend.get_password(_KEYRING_SERVICE, _KEYRING_ACCOUNT) != text:
+    def _write_key(self, key_id: str, key: bytes) -> None:
+        encoded = _encode_key(key)
+        account = _KEYRING_KEY_PREFIX + key_id
+        self._backend.set_password(_KEYRING_SERVICE, account, encoded)
+        if self._backend.get_password(_KEYRING_SERVICE, account) != encoded:
             raise AuditKeyError("credential store did not persist the audit chain key")
+
+    def _write_pointer(self, key_id: str) -> None:
+        self._backend.set_password(_KEYRING_SERVICE, _KEYRING_POINTER_ACCOUNT, key_id)
+        if self._backend.get_password(_KEYRING_SERVICE, _KEYRING_POINTER_ACCOUNT) != key_id:
+            raise AuditKeyError("credential store did not persist the audit chain key pointer")
+
+    def _converge(self) -> tuple[str, bytes]:
+        """Re-read the pointer after moving it and return the actual current key.
+
+        Without CAS the pointer is last-writer-wins; returning the post-write
+        value keeps concurrent creators/rotators on one key, and every written
+        key credential stays resolvable even when its writer loses the race.
+        """
+        pointer = self._pointer()
+        if pointer is None:
+            raise AuditKeyError("credential store did not persist the audit chain key pointer")
+        key = self.resolve(pointer)
+        if key is None:
+            raise AuditKeyError("audit chain current key is missing from the credential store")
+        return pointer, key
+
+    def current(self) -> tuple[str, bytes]:
+        pointer = self._pointer()
+        if pointer is not None:
+            key = self.resolve(pointer)
+            if key is None:
+                raise AuditKeyError("audit chain current key is missing from the credential store")
+            return pointer, key
+        key = secrets.token_bytes(32)
+        self._write_key(_fingerprint(key), key)
+        self._write_pointer(_fingerprint(key))
+        return self._converge()
+
+    def rotate(self) -> tuple[str, bytes]:
+        key = secrets.token_bytes(32)
+        self._write_key(_fingerprint(key), key)
+        self._write_pointer(_fingerprint(key))
+        return self._converge()
+
+    def resolve(self, key_id: str) -> bytes | None:
+        # Key ids come from audit records; a malformed one must be a plain
+        # miss, never a lookup of an attacker-shaped credential name.
+        if not _valid_key_id(key_id):
+            return None
+        raw = self._backend.get_password(_KEYRING_SERVICE, _KEYRING_KEY_PREFIX + key_id)
+        if raw is None:
+            return None
+        try:
+            return _decode_key(raw)
+        except ValueError as error:
+            raise AuditKeyError("audit key store is corrupt") from error
 
 
 class FileAuditKeys(_DocKeyStore):
@@ -168,6 +265,41 @@ class FileAuditKeys(_DocKeyStore):
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
+
+    @contextlib.contextmanager
+    def _mutation_lock(self):
+        """Serialize current()/rotate() across processes via a sibling lock file.
+
+        Held OS locks release on process death, so a crashed writer cannot
+        wedge the store the way a stale create-if-absent lock file would.
+        """
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(self.path.with_name(self.path.name + ".lock"), os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                deadline = time.monotonic() + 10
+                while True:
+                    try:
+                        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                        break
+                    except OSError:
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError("audit key store lock timed out")
+                        time.sleep(0.01)
+                try:
+                    yield
+                finally:
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                yield
+        finally:
+            os.close(fd)
 
     def _check_permissions(self) -> None:
         if os.name == "nt" or not self.path.exists():
@@ -290,24 +422,39 @@ class AuditLog:
         return self._key_store.current()
 
     def append(self, record: dict[str, Any]) -> None:
+        reserved = _RESERVED_RECORD_FIELDS.intersection(record)
+        if reserved:
+            # Callers never supply chain fields; an injected "chain"/"key_id"
+            # would otherwise land in the record and break verification.
+            raise ValueError(f"audit record must not set reserved field(s): {', '.join(sorted(reserved))}")
         # Resolve the key before touching the file: no key, no record, no file.
         keys = None if self._legacy else self._keys()
         for attempt in range(4):
             try:
                 self._append_once(record, keys)
                 return
-            except PermissionError:
-                # Native Windows opens can lose a sharing race against concurrent
-                # appenders before the lock is taken; the write has not happened
-                # yet, so retrying the whole append is safe (docs/native-windows.md).
-                if os.name != "nt" or attempt == 3:
+            except _SharingViolation:
+                # Native Windows opens can lose a sharing race (antivirus,
+                # indexer, a concurrent appender) before the lock is taken.
+                # The write has not happened yet, so retrying the whole
+                # append is safe (docs/native-windows.md).
+                if attempt == 3:
                     raise
-                import time
-
                 time.sleep(0.05 * (attempt + 1))
 
     def _append_once(self, record: dict[str, Any], keys: tuple[str, bytes] | None) -> None:
-        with _append_stream(self.path) as handle:
+        with contextlib.ExitStack() as stack:
+            try:
+                handle = stack.enter_context(_append_stream(self.path))
+            except PermissionError as error:
+                # Only a sharing violation while acquiring the handle is
+                # retryable. Anything at or after the write - the write
+                # itself, flush, sync, unlock - fails immediately, because
+                # the record may already be on disk and a retry would
+                # duplicate it.
+                if getattr(error, "winerror", None) == 32:
+                    raise _SharingViolation(*error.args) from error
+                raise
             last = _last_record(handle)
             clean = redact(record)
             clean["previous_hash"] = last["hash"] if last else ZERO
