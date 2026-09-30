@@ -7,7 +7,7 @@ Changes since the 0.3.0a0 distribution and v0.3.0-alpha tag.
 ### First run
 - Local browser chat with an offline planner, host-rendered exact-action approval cards, CSRF checks, and localhost-only binding.
 - An installed `openmuse-chat` startup smoke test using an ephemeral port and a temporary workspace, with bounded readiness and teardown.
-- Windows PowerShell CI exercises the README install, approval demo, audit verifier, and browser-chat entrypoint.
+- A Windows CI trial exposed POSIX-only audit locking and workspace file APIs. Native Windows remains unsupported; issue #30 stays open. No weaker compatibility fallback was added.
 - A fresh Docker rehearsal measures provisioning, README installation, first approved action, audit verification, and chat startup against a 15-minute limit.
 - README activation commands and audit record count match the current demo.
 
