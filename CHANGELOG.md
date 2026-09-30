@@ -32,6 +32,32 @@ Changes since the 0.3.0a0 distribution and v0.3.0-alpha tag.
 ### Limits
 This is an alpha runtime, not an independently audited production assistant. Python extensions remain trusted host code. The shared-key secret-service protocol returns plaintext to an authorized caller and is an experimental demonstration, not an isolation guarantee. POSIX descriptor protections do not imply equivalent Windows file-tool isolation. Container/VM deployment, OAuth callback operation, independent checkpoint storage, and external security review remain operator responsibilities.
 
-## 0.3.0a0 (2026-09-19)
+## v0.3.0-alpha - 2026-09-19
 
-First PyPI release. Read-only Gmail and Google Calendar connectors, managed OAuth, OS keyring master-key support, process-worker boundary, approval and audit demos, and deployment documentation. See the v0.3.0-alpha tag for the exact source baseline.
+### Added
+
+- Managed Google OAuth with authorization-code exchange, automatic refresh, encrypted token storage, and OS-keyring-backed master keys.
+- Read-only Gmail and Google Calendar connectors built on scoped, least-privilege grants, plus credential-free local simulation connectors.
+- Searchable and editable working/curated memory with hash-chained remember, promote, edit, and forget events, plus state verification against the audit chain.
+- Five-field cron scheduling with atomic job claims across workers, and subagent grants that can only narrow tools, budgets, expiry, and argument constraints.
+- A secrets broker that passes named secrets to tools through a scoped execution side channel without exposing plaintext to planner context, manifests, action arguments, or audit logs.
+- A fresh-process isolated worker with bounded runtime, memory, file descriptors, output, environment, and workspace.
+- An independent security-review packet with a reviewer brief and checklist.
+
+### Changed
+
+- The approval demo now shows the exact tool, path, content preview, and SHA-256 being approved, then verifies that the approved action is the action executed.
+- Connector revocation now clears cached clients and fails closed if cleanup does not complete.
+- Tool arguments are validated before approval, policy checks, and execution.
+- `FetchURL` now resolves once and pins connections to validated public addresses to prevent DNS-rebinding bypasses.
+- Project metadata and runtime version are aligned for this prerelease.
+
+### Fixed
+
+- Approval tokens are consumed atomically, preventing concurrent verification from using one approval twice.
+- Approval expiry now rejects tokens at the exact expiry boundary (`now >= exp`).
+- Scheduled jobs are claimed transactionally so parallel workers cannot run the same job twice.
+
+### Known limitations
+
+- OpenMuse remains alpha software for test accounts and non-sensitive data. Documentation drift in the security limits is being cleaned up separately.
