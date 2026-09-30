@@ -15,10 +15,11 @@ stores are accepted - the backend is checked against an allowlist, because
 plaintext-file and in-memory keyring backends report a positive priority and
 a priority check alone would wave them through.
 
-Each key is its own credential (`audit-hmac-key.<key id>`) and a small pointer
-credential (`audit-hmac-key.current`) names the current key id. A key id is
-the first 16 hex characters of the key's SHA-256, which identifies a key
-without exposing it. Per-key credentials serve two purposes:
+Each key is its own credential *target* (service
+`openmuse-agent.audit-hmac-key.<key id>`) and a small pointer credential
+(service `openmuse-agent.audit-hmac-key`) names the current key id. A key id
+is the first 16 hex characters of the key's SHA-256, which identifies a key
+without exposing it. One target per key serves two purposes:
 
 - **Size.** Windows Credential Manager caps a credential at 2560 UTF-16
   bytes; a single growing JSON document hits that cap after roughly 18
@@ -26,13 +27,23 @@ without exposing it. Per-key credentials serve two purposes:
   has no practical count bound beyond the store's entry capacity.
 - **Concurrency.** OS stores offer no compare-and-swap, so a shared
   read-modify-write document loses keys when two rotations race (the loser's
-  overwrite drops the winner's key, orphaning the records it covers). With
-  per-key credentials writers never share mutable state: each rotation writes
-  a fresh, uniquely named credential, moves the pointer, then re-reads it and
+  overwrite drops the winner's key, orphaning the records it covers). The
+  Windows adapter additionally keeps one credential per service name and
+  read-modify-writes that target non-atomically (a displaced value is moved
+  to a compound `{username}@{service}` target), so even distinct accounts
+  under one shared service can lose a value when writes race. With one
+  target per key, writers never share mutable state: each rotation writes a
+  fresh, disjoint credential, moves the pointer, then re-reads it and
   converges on the winner. Every key ever handed out stays resolvable.
 
 `FileAuditKeys` serializes its document read-modify-write with a sibling
 `.lock` file (an OS-held lock, released automatically if a writer dies).
+
+Stores written by the pre-split format (one JSON document under the
+`audit-hmac-keys` account of service `openmuse-agent`) keep working: the
+first `current()` migrates every key into its own target and deletes the
+document (best effort), and `resolve` falls back to the legacy document so
+existing keyed history verifies even before migration runs.
 
 The runtime fails closed when no credential store is available: append raises
 `AuditKeyError` before the audit file is even created, and verification reports

@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
 from pathlib import Path
 
 import pytest
@@ -463,19 +464,26 @@ class _SharedFakeKeyring:
         with self.lock:
             self.values[(service, account)] = value
 
+    def delete_password(self, service, account):
+        with self.lock:
+            self.values.pop((service, account), None)
 
-def test_keyring_store_uses_one_credential_per_key_plus_pointer():
+
+def test_keyring_store_uses_one_credential_target_per_key_plus_pointer():
     backend = _SharedFakeKeyring()
     store = KeyringAuditKeys(backend=backend)
     key_id, _key = store.current()
     new_id, _ = store.rotate()
-    accounts = {account for (_service, account) in backend.values}
-    assert accounts == {
-        "audit-hmac-key.current",
-        f"audit-hmac-key.{key_id}",
-        f"audit-hmac-key.{new_id}",
+    services = {service for (service, _account) in backend.values}
+    assert services == {
+        "openmuse-agent.audit-hmac-key",
+        f"openmuse-agent.audit-hmac-key.{key_id}",
+        f"openmuse-agent.audit-hmac-key.{new_id}",
     }
-    assert backend.values[("openmuse-agent", "audit-hmac-key.current")] == new_id
+    # One credential target (service) per key: the Windows adapter keeps a
+    # single credential per service name, so sharing a service would put
+    # concurrent key writes on a collision course.
+    assert backend.values[("openmuse-agent.audit-hmac-key", "current")] == new_id
 
 
 def test_keyring_store_stays_small_after_many_rotations():
@@ -514,7 +522,7 @@ def test_keyring_pointer_to_missing_key_fails_closed():
     backend = _SharedFakeKeyring()
     store = KeyringAuditKeys(backend=backend)
     store.current()
-    backend.values[("openmuse-agent", "audit-hmac-key.current")] = "f" * 16
+    backend.values[("openmuse-agent.audit-hmac-key", "current")] = "f" * 16
     with pytest.raises(AuditKeyError, match="current key is missing"):
         store.current()
 
@@ -532,6 +540,197 @@ def test_keyring_store_rejects_corrupt_key_credential():
     backend = _SharedFakeKeyring()
     store = KeyringAuditKeys(backend=backend)
     key_id, _ = store.current()
-    backend.values[("openmuse-agent", f"audit-hmac-key.{key_id}")] = base64.urlsafe_b64encode(b"tiny").decode()
+    backend.values[(f"openmuse-agent.audit-hmac-key.{key_id}", "key")] = base64.urlsafe_b64encode(b"tiny").decode()
     with pytest.raises(AuditKeyError, match="corrupt"):
         store.resolve(key_id)
+
+
+# --- WinVault adapter semantics: one credential per service target ---------
+
+
+class WinVaultEmulator:
+    """Faithful model of keyring.backends.Windows.WinVaultKeyring (25.7).
+
+    One credential target per service name. set_password read-modify-writes
+    the target non-atomically: a displaced value is first moved to a compound
+    "{username}@{service}" target, then the new value overwrites the target.
+    get_password falls back to the compound name on a username mismatch.
+    """
+
+    def __init__(self, hook=None):
+        self.targets = {}
+        self.hook = hook or (lambda: None)
+
+    def get_password(self, service, username):
+        cred = self.targets.get(service)
+        if cred is None or (username and cred[0] != username):
+            cred = self.targets.get(f"{username}@{service}")
+        return cred[1] if cred else None
+
+    def set_password(self, service, username, password):
+        existing = self.targets.get(service)
+        self.hook()  # the real adapter is not atomic between read and write
+        if existing is not None:
+            self.targets[f"{existing[0]}@{service}"] = existing
+        self.targets[service] = (username, password)
+
+    def delete_password(self, service, username):
+        self.targets.pop(service, None)
+
+
+def test_winvault_emulator_matches_adapter_semantics():
+    backend = WinVaultEmulator()
+    backend.set_password("svc", "alice", "p1")
+    backend.set_password("svc", "bob", "p2")
+    # Sequential writes survive via the compound-name move.
+    assert backend.get_password("svc", "alice") == "p1"
+    assert backend.get_password("svc", "bob") == "p2"
+
+
+def test_winvault_emulator_concurrent_writes_under_one_service_lose_one():
+    # Pins why keys never share a service target: two writers that both read
+    # before either writes each see nothing to move, and one value vanishes.
+    import threading
+
+    barrier = threading.Barrier(2, timeout=10)
+    backend = WinVaultEmulator(hook=barrier.wait)
+
+    def write(username, password):
+        backend.set_password("svc", username, password)
+
+    threads = [
+        threading.Thread(target=write, args=("alice", "p1")),
+        threading.Thread(target=write, args=("bob", "p2")),
+    ]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    survivors = [backend.get_password("svc", name) for name in ("alice", "bob")]
+    assert survivors.count(None) == 1  # one writer's value is gone
+
+
+def test_concurrent_rotations_on_winvault_semantics_lose_no_key():
+    # Same interleaving as above: both rotations' first writes rendezvous
+    # mid-set_password. Unique per-key targets keep every key resolvable.
+    import threading
+
+    barrier = threading.Barrier(2, timeout=10)
+    store = KeyringAuditKeys(backend=WinVaultEmulator(hook=barrier.wait))
+    ids, lock = [], threading.Lock()
+
+    def worker():
+        key_id, _ = store.rotate()
+        with lock:
+            ids.append(key_id)
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert len(set(ids)) == 2
+    for key_id in ids:
+        assert store.resolve(key_id) is not None
+    pointer, key = store.current()
+    assert store.resolve(pointer) == key
+
+
+def test_pointer_readback_tolerates_a_normal_race():
+    # A concurrent writer legitimately moves the pointer between our write
+    # and our re-read; convergence must win over strict equality.
+    backend = _SharedFakeKeyring()
+    store = KeyringAuditKeys(backend=backend)
+    original_write_pointer = store._write_pointer
+
+    def racing_write_pointer(key_id):
+        original_write_pointer(key_id)
+        other = secrets.token_bytes(32)
+        store._write_key(hashlib.sha256(other).hexdigest()[:16], other)
+        original_write_pointer(hashlib.sha256(other).hexdigest()[:16])
+
+    store._write_pointer = racing_write_pointer
+    pointer, key = store.current()
+    assert store.resolve(pointer) == key
+
+
+# --- Upgrade path from the pre-split single-document store -----------------
+
+
+def _seed_legacy_document(backend, keys, current):
+    import base64
+
+    doc = {
+        "current": current,
+        "keys": {key_id: base64.urlsafe_b64encode(key).decode() for key_id, key in keys.items()},
+    }
+    backend.set_password("openmuse-agent", "audit-hmac-keys", json.dumps(doc))
+
+
+def test_legacy_document_store_migrates_on_first_use():
+    backend = _SharedFakeKeyring()
+    old, new = secrets.token_bytes(32), secrets.token_bytes(32)
+    old_id = hashlib.sha256(old).hexdigest()[:16]
+    new_id = hashlib.sha256(new).hexdigest()[:16]
+    _seed_legacy_document(backend, {old_id: old, new_id: new}, new_id)
+
+    store = KeyringAuditKeys(backend=backend)
+    key_id, key = store.current()
+    assert (key_id, key) == (new_id, new)
+    assert store.resolve(old_id) == old
+    # Both keys now live in their own targets and the document is removed.
+    assert backend.get_password("openmuse-agent", "audit-hmac-keys") is None
+    assert backend.get_password(f"openmuse-agent.audit-hmac-key.{old_id}", "key") is not None
+
+
+class _NoDeleteFakeKeyring(_SharedFakeKeyring):
+    delete_password = None  # attribute exists but is not callable
+
+
+def test_resolve_falls_back_to_legacy_document_without_migration():
+    backend = _NoDeleteFakeKeyring()
+    old = secrets.token_bytes(32)
+    old_id = hashlib.sha256(old).hexdigest()[:16]
+    _seed_legacy_document(backend, {old_id: old}, old_id)
+    store = KeyringAuditKeys(backend=backend)
+    assert store.resolve(old_id) == old
+
+
+def test_chain_keyed_under_legacy_document_store_still_verifies(tmp_path):
+    # History written by the pre-split format must not become "unknown audit
+    # key id" after upgrade - including before any migration runs.
+    key = secrets.token_bytes(32)
+    key_id = hashlib.sha256(key).hexdigest()[:16]
+    backend = _NoDeleteFakeKeyring()
+    _seed_legacy_document(backend, {key_id: key}, key_id)
+
+    path = tmp_path / "audit"
+    record = {
+        "event": "before-upgrade",
+        "previous_hash": "0" * 64,
+        "chain": "hmac-sha256",
+        "key_id": key_id,
+    }
+    raw = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    record["hash"] = hmac.new(key, raw, hashlib.sha256).hexdigest()
+    path.write_text(json.dumps(record, ensure_ascii=False) + "\n")
+
+    store = KeyringAuditKeys(backend=backend)
+    assert verify_chain(path, key_store=store) == (True, 1, None)
+    AuditLog(path, key_store=store).append({"event": "after-upgrade"})
+    assert verify_chain(path, key_store=store) == (True, 2, None)
+
+
+def test_corrupt_legacy_document_fails_closed():
+    backend = _SharedFakeKeyring()
+    backend.set_password("openmuse-agent", "audit-hmac-keys", "not-json{")
+    store = KeyringAuditKeys(backend=backend)
+    with pytest.raises(AuditKeyError, match="corrupt"):
+        store.current()
+
+
+def test_legacy_document_without_current_key_creates_fresh():
+    backend = _SharedFakeKeyring()
+    old = secrets.token_bytes(32)
+    old_id = hashlib.sha256(old).hexdigest()[:16]
+    _seed_legacy_document(backend, {old_id: old}, None)
+    store = KeyringAuditKeys(backend=backend)
+    key_id, key = store.current()
+    assert key_id != old_id and len(key) == 32
+    assert store.resolve(old_id) == old

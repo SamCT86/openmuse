@@ -37,9 +37,26 @@ _RESERVED_RECORD_FIELDS = {"hash", "previous_hash", "chain", "key_id"}
 KEYED_ALGORITHM = "hmac-sha256"
 KEY_FILE_ENV = "OPENMUSE_AUDIT_KEY_FILE"
 _KEYRING_SERVICE = "openmuse-agent"
-_KEYRING_POINTER_ACCOUNT = "audit-hmac-key.current"
-_KEYRING_KEY_PREFIX = "audit-hmac-key."
+_KEYRING_POINTER_SERVICE = "openmuse-agent.audit-hmac-key"
+_KEYRING_POINTER_ACCOUNT = "current"
+_KEYRING_KEY_ACCOUNT = "key"
+_KEYRING_KEY_SERVICE_PREFIX = "openmuse-agent.audit-hmac-key."
+_KEYRING_LEGACY_ACCOUNT = "audit-hmac-keys"  # pre-split single-document format
 _KEY_ID_LENGTH = 16
+
+
+def _keyring_key_service(key_id: str) -> str:
+    """One credential target per key.
+
+    The Windows Credential Manager adapter keeps a single credential per
+    *service* name and read-modify-writes that target: a displaced value is
+    moved to a compound ``{username}@{service}`` target before the new value
+    is written. That move is not atomic - two writers to the same service can
+    both read the old state and one value is lost - so distinct accounts
+    under one shared service are not safe under concurrency. A unique service
+    per key makes every key write touch a disjoint target.
+    """
+    return _KEYRING_KEY_SERVICE_PREFIX + key_id
 
 
 class AuditKeyError(RuntimeError):
@@ -161,21 +178,29 @@ def _decode_key(raw: str) -> bytes:
 class KeyringAuditKeys:
     """Audit-chain keys in the OS credential store; the only production store.
 
-    Every key is its own credential (``audit-hmac-key.<key id>``) and a small
-    pointer credential (``audit-hmac-key.current``) names the current key id.
-    A single growing JSON document would hit backend size caps - Windows
-    Credential Manager rejects credentials over 2560 UTF-16 bytes, which a
-    shared document reaches after roughly 18 rotations - and per-key
-    credentials keep each stored value far below any such limit.
+    Every key is its own credential target (service
+    ``openmuse-agent.audit-hmac-key.<key id>``) and a small pointer credential
+    names the current key id. This layout serves three purposes:
 
-    Per-key credentials also make concurrent updates safe. OS stores offer no
-    compare-and-swap, so a read-modify-write over one shared document loses
-    keys when two rotations race: the loser's overwrite drops the winner's
-    key and the records it covers become unverifiable. Here writers never
-    share mutable state: each rotation writes a fresh, uniquely named key
-    credential (two writers can never clobber each other), moves the pointer,
-    then re-reads it and converges on the winner. A key already handed out
-    stays resolvable regardless of the pointer's final value.
+    - **Size.** Windows Credential Manager caps a credential at 2560 UTF-16
+      bytes; a single growing JSON document hits that cap after roughly 18
+      rotations. Every credential here stays far below the limit, so rotation
+      has no practical count bound beyond the store's entry capacity.
+    - **Concurrency.** OS stores offer no compare-and-swap, so a shared
+      read-modify-write document loses keys when two rotations race (the
+      loser's overwrite drops the winner's key, orphaning the records it
+      covers). The Windows adapter makes this worse: it keeps one credential
+      per service name and read-modify-writes that target non-atomically
+      (a displaced value is moved to a compound ``{username}@{service}``
+      target), so even separate accounts under one service can lose a value
+      when writes race. Here every key write targets a disjoint credential,
+      and writers converge on one current key by re-reading the pointer
+      after moving it; a key already handed out stays resolvable regardless
+      of the pointer's final value.
+    - **Upgrade.** Stores written by the pre-split format (one JSON document
+      under the ``audit-hmac-keys`` account) migrate on first use, and
+      ``resolve`` falls back to the legacy document so old keyed history
+      keeps verifying even before migration runs.
 
     Retired keys stay in the store so rotated history remains verifiable;
     deleting them invalidates verification of the records they cover.
@@ -193,19 +218,22 @@ class KeyringAuditKeys:
         self._backend = backend
 
     def _pointer(self) -> str | None:
-        return self._backend.get_password(_KEYRING_SERVICE, _KEYRING_POINTER_ACCOUNT)
+        return self._backend.get_password(_KEYRING_POINTER_SERVICE, _KEYRING_POINTER_ACCOUNT)
 
     def _write_key(self, key_id: str, key: bytes) -> None:
+        # Strict read-back is safe here: the target is unique to this key, so
+        # no concurrent writer can legitimately change it.
         encoded = _encode_key(key)
-        account = _KEYRING_KEY_PREFIX + key_id
-        self._backend.set_password(_KEYRING_SERVICE, account, encoded)
-        if self._backend.get_password(_KEYRING_SERVICE, account) != encoded:
+        service = _keyring_key_service(key_id)
+        self._backend.set_password(service, _KEYRING_KEY_ACCOUNT, encoded)
+        if self._backend.get_password(service, _KEYRING_KEY_ACCOUNT) != encoded:
             raise AuditKeyError("credential store did not persist the audit chain key")
 
     def _write_pointer(self, key_id: str) -> None:
-        self._backend.set_password(_KEYRING_SERVICE, _KEYRING_POINTER_ACCOUNT, key_id)
-        if self._backend.get_password(_KEYRING_SERVICE, _KEYRING_POINTER_ACCOUNT) != key_id:
-            raise AuditKeyError("credential store did not persist the audit chain key pointer")
+        # No strict read-back: a concurrent creator/rotator may legitimately
+        # have moved the pointer past our value. _converge() validates what
+        # actually landed.
+        self._backend.set_password(_KEYRING_POINTER_SERVICE, _KEYRING_POINTER_ACCOUNT, key_id)
 
     def _converge(self) -> tuple[str, bytes]:
         """Re-read the pointer after moving it and return the actual current key.
@@ -222,16 +250,51 @@ class KeyringAuditKeys:
             raise AuditKeyError("audit chain current key is missing from the credential store")
         return pointer, key
 
+    def _legacy_doc(self) -> tuple[str | None, dict[str, bytes]] | None:
+        """Read the pre-split single-document store, when present."""
+        raw = self._backend.get_password(_KEYRING_SERVICE, _KEYRING_LEGACY_ACCOUNT)
+        if raw is None:
+            return None
+        try:
+            doc = json.loads(raw)
+            keys = {kid: _decode_key(encoded) for kid, encoded in doc["keys"].items()}
+        except (ValueError, TypeError, KeyError, AttributeError) as error:
+            raise AuditKeyError("audit key store is corrupt") from error
+        current = doc.get("current")
+        if current is not None and current not in keys:
+            raise AuditKeyError("audit key store current key is missing")
+        return current, keys
+
+    def _migrate_legacy(self, current: str | None, keys: dict[str, bytes]) -> None:
+        for key_id, key in keys.items():
+            self._write_key(key_id, key)
+        if current is not None:
+            self._write_pointer(current)
+        # Best-effort cleanup of the superseded document; resolve() keeps
+        # falling back to it whenever deletion is unavailable or fails.
+        delete = getattr(self._backend, "delete_password", None)
+        if callable(delete):
+            with contextlib.suppress(Exception):
+                delete(_KEYRING_SERVICE, _KEYRING_LEGACY_ACCOUNT)
+
     def current(self) -> tuple[str, bytes]:
         pointer = self._pointer()
-        if pointer is not None:
-            key = self.resolve(pointer)
-            if key is None:
+        if pointer is None:
+            legacy = self._legacy_doc()
+            if legacy is not None:
+                self._migrate_legacy(*legacy)
+                if legacy[0] is not None:
+                    return self._converge()
+                # A legacy store that never initialized has no current key:
+                # its keys migrated above; fall through to first creation.
+            key = secrets.token_bytes(32)
+            self._write_key(_fingerprint(key), key)
+            self._write_pointer(_fingerprint(key))
+        else:
+            existing = self.resolve(pointer)
+            if existing is None:
                 raise AuditKeyError("audit chain current key is missing from the credential store")
-            return pointer, key
-        key = secrets.token_bytes(32)
-        self._write_key(_fingerprint(key), key)
-        self._write_pointer(_fingerprint(key))
+            return pointer, existing
         return self._converge()
 
     def rotate(self) -> tuple[str, bytes]:
@@ -245,13 +308,16 @@ class KeyringAuditKeys:
         # miss, never a lookup of an attacker-shaped credential name.
         if not _valid_key_id(key_id):
             return None
-        raw = self._backend.get_password(_KEYRING_SERVICE, _KEYRING_KEY_PREFIX + key_id)
-        if raw is None:
-            return None
-        try:
-            return _decode_key(raw)
-        except ValueError as error:
-            raise AuditKeyError("audit key store is corrupt") from error
+        raw = self._backend.get_password(_keyring_key_service(key_id), _KEYRING_KEY_ACCOUNT)
+        if raw is not None:
+            try:
+                return _decode_key(raw)
+            except ValueError as error:
+                raise AuditKeyError("audit key store is corrupt") from error
+        legacy = self._legacy_doc()
+        if legacy is not None:
+            return legacy[1].get(key_id)
+        return None
 
 
 class FileAuditKeys(_DocKeyStore):
