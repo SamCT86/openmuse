@@ -14,3 +14,5 @@ with tempfile.TemporaryDirectory(prefix="openmuse-scheduler-") as directory:
     claimed_again = scheduler.claim_due(now)
     print(f"created={job.goal!r} schedule={job.schedule!r}")
     print(f"first_claim={len(claimed)} second_claim={len(claimed_again)}")
+
+    scheduler.db.close()

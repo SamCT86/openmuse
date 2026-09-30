@@ -5,9 +5,11 @@ from pathlib import Path
 
 def run_example(name: str) -> str:
     root = Path(__file__).resolve().parents[1]
-    return subprocess.run(
-        [sys.executable, root / "examples" / name], cwd=root, text=True, capture_output=True, check=True
-    ).stdout
+    result = subprocess.run(
+        [sys.executable, root / "examples" / name], cwd=root, text=True, capture_output=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
 
 
 def test_memory_demo():
