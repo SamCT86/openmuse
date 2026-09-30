@@ -168,19 +168,15 @@ def file_handle(workspace: Path, raw: str, *, write: bool = False,
                 audit: bool = False) -> Iterator[Any]:
     parts = components(raw)
     with directory_handles(workspace, create_missing=audit) as held:
+        # The directory context owns this same list, including parents here.
+        for part in parts[:-1]:
+            held.append(_relative(held[-1], part, directory=True, create_missing=write))
+        handle = _relative(held[-1], parts[-1], directory=False, write=write,
+                           create_missing=write, audit=audit)
         try:
-            for part in parts[:-1]:
-                held.append(_relative(held[-1], part, directory=True, create_missing=write))
-            handle = _relative(held[-1], parts[-1], directory=False, write=write,
-                               create_missing=write, audit=audit)
-            try:
-                yield handle
-            finally:
-                close(handle)
+            yield handle
         finally:
-            # directory_handles owns the complete retained list, including
-            # components appended here. No pathname is reopened after checks.
-            pass
+            close(handle)
 
 
 def _duplicate_fd(handle: Any) -> int:
