@@ -1,7 +1,9 @@
 import argparse
 import json
+import sys
 from pathlib import Path
 
+from .audit import AuditKeyError
 from .core import Agent
 from .models import Action
 from .policy import Policy
@@ -16,9 +18,13 @@ def main():
     p.add_argument("--allow-writes", action="store_true")
     a = p.parse_args()
     w = a.workspace.resolve()
-    r = Agent([ReadFile(w), WriteFile(w), FetchURL()], Policy(a.allow_writes), w / ".openmuse/audit.jsonl").execute(
-        Action(a.tool, json.loads(a.args))
-    )
+    try:
+        r = Agent([ReadFile(w), WriteFile(w), FetchURL()], Policy(a.allow_writes), w / ".openmuse/audit.jsonl").execute(
+            Action(a.tool, json.loads(a.args))
+        )
+    except AuditKeyError as error:
+        print(f"openmuse: {error}", file=sys.stderr)
+        raise SystemExit(2) from None
     print(r.output)
     raise SystemExit(0 if r.status.value == "completed" else 2)
 

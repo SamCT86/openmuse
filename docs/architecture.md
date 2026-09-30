@@ -41,10 +41,14 @@ argument digest, no argument/output text) before calling a tool, then writes a
 completion or failure record. A pending intent without an outcome after a crash
 is **unknown**, not safe to retry: inspect the external effect before deciding
 what happened. If the outcome write fails after the tool call, the result is
-`audit_outcome_unknown` and `retryable=False`. The audit chain is tamper-evident
-only relative to a trusted checkpoint; it is not independently anchored by
-being stored locally. Audit records can show a tool was attempted but cannot
-prove a third-party side effect completed.
+`audit_outcome_unknown` and `retryable=False`. The audit chain is keyed with
+HMAC-SHA256; the key lives in the OS credential store, so forging or editing
+records requires key access, not just write access to the file (see
+[Keyed audit chain](keyed-audit.md) for key storage, migration, and rotation).
+The chain is still not independently anchored: truncating or wholesale
+replacing the file is detectable only relative to a trusted checkpoint. Audit
+records can show a tool was attempted but cannot prove a third-party side
+effect completed.
 
 ## Local web approval restart policy
 

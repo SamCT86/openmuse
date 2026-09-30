@@ -44,9 +44,10 @@ append and flush happen while locked. `FlushFileBuffers` completes before unlock
 A partial tail, failed lock, timeout or sync failure is not reported as success.
 No thread-only or no-op lock fallback exists.
 
-The chain uses unkeyed SHA-256. It detects edits only when the editor does not
-recompute the chain; it does not authenticate records against a writer who can
-replace the log and recompute every hash. Verification refuses leaf symlinks;
+The chain is keyed with HMAC-SHA256; the key lives in the OS credential store
+(Windows Credential Manager on this backend) and never in the workspace, so
+forging records requires key access, not just write access to the log - see
+[Keyed audit chain](keyed-audit.md). Verification refuses leaf symlinks;
 on Windows it also uses the anchored handle walk. POSIX verification does not
 pin ancestor directories, so use a trusted directory.
 

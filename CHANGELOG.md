@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased (keyed-audit-chain branch)
+
+- Audit hash chain replaced with keyed HMAC-SHA256 chaining; the key lives in the OS credential store (macOS Keychain, Windows Credential Manager, libsecret via `keyring`) and never in the workspace or repository. Forging or editing audit records now requires key access, not just file write.
+- Fail-closed key handling: append raises `AuditKeyError` before touching the audit file and verification fails when no credential store is available; no silent fallback to unkeyed chains. `OPENMUSE_AUDIT_KEY_FILE` selects an explicit owner-only key file for containers, demos, and CI (not a security boundary).
+- Backward compatibility: pre-keying unkeyed chains still verify without a key; a mixed legacy-to-keyed chain verifies with a single boundary, and the first keyed record anchors the legacy head. `verify_chain(..., require_keyed=True)` rejects any unkeyed record for fully keyed deployments.
+- Key rotation via the key store: retired keys are kept so history stays verifiable; unknown key ids fail verification.
+- Documented in `docs/keyed-audit.md`; trust-boundary wording updated in `docs/architecture.md`, `docs/threat-model.md`, `docs/native-windows.md`, `docs/audit-anchoring.md`, `SECURITY.md`, and `README.md`.
+
 ## 0.4.0a0 (2026-09-30)
 
 Changes since the 0.3.0a0 distribution and v0.3.0-alpha tag.

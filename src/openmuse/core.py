@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
-from .audit import AuditLog
+from .audit import AuditKeyError, AuditKeyStore, AuditLog
 from .models import Action, ActionStatus, ToolResult
 from .policy import Policy
 from .registry import ToolRegistry
@@ -16,10 +16,10 @@ class Planner(Protocol):
 
 
 class Agent:
-    def __init__(self, tools, policy: Policy, audit_log: Path) -> None:
+    def __init__(self, tools, policy: Policy, audit_log: Path, audit_keys: AuditKeyStore | None = None) -> None:
         self.registry = ToolRegistry(tools)
         self.policy = policy
-        self.audit = AuditLog(audit_log)
+        self.audit = AuditLog(audit_log, key_store=audit_keys)
 
     def execute(self, action: Action) -> ToolResult:
         registered = self.registry.descriptor(action.tool)
@@ -47,7 +47,7 @@ class Agent:
             result = ToolResult(action.id, ActionStatus.FAILED, str(exc), type(exc).__name__, False)
         try:
             self._audit(action, result, event="outcome")
-        except (OSError, ValueError):
+        except (OSError, ValueError, AuditKeyError):
             # An effect could already have occurred. Never suggest a safe retry.
             return ToolResult(action.id, ActionStatus.FAILED, error_code="audit_outcome_unknown", retryable=False)
         return result

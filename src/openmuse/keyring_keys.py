@@ -43,12 +43,21 @@ class KeyringMasterKey:
 
     @staticmethod
     def _system_backend() -> CredentialStore:
-        try:
-            import keyring  # type: ignore[import-not-found]
-        except ImportError as error:  # pragma: no cover - dependency is declared
-            raise MasterKeyError("install the keyring dependency to use OS-backed keys") from error
-        backend = keyring.get_keyring()
-        priority = getattr(backend, "priority", 0)
-        if priority <= 0:
-            raise MasterKeyError("no usable OS credential-store backend is available")
-        return keyring
+        return system_credential_store()
+
+
+def system_credential_store() -> CredentialStore:
+    """Return the OS credential store (Keychain, Credential Manager, libsecret).
+
+    Fails closed when the keyring dependency is missing or no usable backend
+    exists (for example a headless Linux session without Secret Service).
+    """
+    try:
+        import keyring  # type: ignore[import-not-found]
+    except ImportError as error:  # pragma: no cover - dependency is declared
+        raise MasterKeyError("install the keyring dependency to use OS-backed keys") from error
+    backend = keyring.get_keyring()
+    priority = getattr(backend, "priority", 0)
+    if priority <= 0:
+        raise MasterKeyError("no usable OS credential-store backend is available")
+    return keyring

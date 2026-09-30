@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 from openmuse.approvals import ApprovalAuthority
+from openmuse.audit import AuditKeyError
 from openmuse.channels import WebChannel
 from openmuse.core import Agent
 from openmuse.models import Action
@@ -16,6 +17,17 @@ from openmuse.tools import ReadFile, WriteFile
 
 
 def main() -> None:
+    try:
+        run()
+    except AuditKeyError as error:
+        raise SystemExit(
+            f"Audit chain key unavailable: {error}\n"
+            "On a machine with a desktop credential service this works out of the box.\n"
+            "In WSL/containers, set OPENMUSE_AUDIT_KEY_FILE to an owner-only key file first."
+        ) from None
+
+
+def run() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--auto-approve", action="store_true", help="type yes for recordings/Codespaces")
     parser.add_argument("--workspace", default=".openmuse-demo")

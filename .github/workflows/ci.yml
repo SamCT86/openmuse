@@ -5,6 +5,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy: {matrix: {python-version: ['3.11','3.12','3.13']}}
+    # Linux runners have no OS credential service; the demos opt into an
+    # explicit CI key file (0600) as documented in docs/keyed-audit.md.
+    env: {OPENMUSE_AUDIT_KEY_FILE: '${{ github.workspace }}/.ci-audit-keys.json'}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -62,6 +65,7 @@ jobs:
             python -m venv .venv
             source .venv/bin/activate
             python -m pip install -e ".[dev]"
+            export OPENMUSE_AUDIT_KEY_FILE=/tmp/openmuse/.ci-audit-keys.json
             printf "y\n" | python examples/e2e_demo.py
             python examples/verify_audit.py
             python scripts/chat_smoke.py
@@ -93,6 +97,7 @@ jobs:
           python3 -m venv .venv
           source .venv/bin/activate
           python -m pip install -e '.[dev]'
+          export OPENMUSE_AUDIT_KEY_FILE=/tmp/openmuse/.ci-audit-keys.json
           printf 'y\n' | python examples/e2e_demo.py
           python examples/verify_audit.py
           python scripts/chat_smoke.py
