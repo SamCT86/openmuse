@@ -1,49 +1,37 @@
 # Changelog
 
-All notable changes are recorded here. OpenMuse follows semantic versioning while using prerelease tags for alpha builds.
+## 0.4.0a0 (2026-09-30)
 
-## Unreleased
+Changes since the 0.3.0a0 distribution and v0.3.0-alpha tag.
 
-### Added
+### First run
+- Local browser chat with an offline planner, host-rendered exact-action approval cards, CSRF checks, and localhost-only binding.
+- An installed `openmuse-chat` startup smoke test using an ephemeral port and a temporary workspace, with bounded readiness and teardown.
+- Windows PowerShell CI exercises the README install, approval demo, audit verifier, and browser-chat entrypoint.
+- A fresh Docker rehearsal measures provisioning, README installation, first approved action, audit verification, and chat startup against a 15-minute limit.
+- README activation commands and audit record count match the current demo.
 
-- `openmuse-chat`: a local web chat that talks to the agent from the browser. Reads run immediately; writes pause for an in-browser, host-rendered exact-action approval and run once. Works offline with a demo planner or with any OpenAI-compatible model.
-- `OpenAICompatiblePlanner` keeps an optional `reply` from the model's final `{done: true}` response as `last_reply`.
+### Runtime and safety boundaries
+- Full JSON Schema 2020-12 argument validation and host-registered tool descriptors; mutable extensions cannot silently change registered risk or schema.
+- Audit intent persisted before tool effects, digest-only action matching, bounded append/stream verification, and fail-closed audit regressions.
+- Persistent single-use approval service and restart invalidation of orphaned web-chat approval cards.
+- Shared durable delegation quotas and tests for sibling contention.
+- Scheduler lease tokens, explicit unknown crash states, and UTC-instant iteration across DST gaps and folds.
+- Anchored, no-follow workspace file operations and symlink-swap regressions on supported POSIX systems.
+- Kernel-bounded subprocess capture and timeouts for isolated workers and the default container runner.
+- Restricted read-only container worker adapter, container conformance suite, and reference image.
+- Signed audit checkpoints and an immutable HTTPS checkpoint publisher adapter.
+- Google OAuth revocation before local deletion and a disposable-account lifecycle harness.
 
-### Fixed
+### Extension and maintenance
+- Supported trusted extension protocol, stable exports, extension cookbook, and runnable typed-tool example.
+- Public API and scheduling semantics, deployment guidance, independent review evidence generator, and documentation link checks.
+- Python-version-specific pinned CI dependencies and safety-boundary regression jobs.
+- README architecture diagram, comparison table, first-contribution path, and project status refresh.
 
-- Google OAuth revocation now accepts the provider's documented empty `200 OK` response before deleting local credentials.
+### Limits
+This is an alpha runtime, not an independently audited production assistant. Python extensions remain trusted host code. The shared-key secret-service protocol returns plaintext to an authorized caller and is an experimental demonstration, not an isolation guarantee. POSIX descriptor protections do not imply equivalent Windows file-tool isolation. Container/VM deployment, OAuth callback operation, independent checkpoint storage, and external security review remain operator responsibilities.
 
-### Changed
+## 0.3.0a0 (2026-09-19)
 
-- Security and roadmap documentation now match the JSON Schema, revocation, and container-isolation work in the current main branch.
-- Pull-request CI now builds and installs the wheel, then runs a CLI smoke test.
-
-## v0.3.0-alpha - 2026-09-19
-
-### Added
-
-- Managed Google OAuth with authorization-code exchange, automatic refresh, encrypted token storage, and OS-keyring-backed master keys.
-- Read-only Gmail and Google Calendar connectors built on scoped, least-privilege grants, plus credential-free local simulation connectors.
-- Searchable and editable working/curated memory with hash-chained remember, promote, edit, and forget events, plus state verification against the audit chain.
-- Five-field cron scheduling with atomic job claims across workers, and subagent grants that can only narrow tools, budgets, expiry, and argument constraints.
-- A secrets broker that passes named secrets to tools through a scoped execution side channel without exposing plaintext to planner context, manifests, action arguments, or audit logs.
-- A fresh-process isolated worker with bounded runtime, memory, file descriptors, output, environment, and workspace.
-- An independent security-review packet with a reviewer brief and checklist.
-
-### Changed
-
-- The approval demo now shows the exact tool, path, content preview, and SHA-256 being approved, then verifies that the approved action is the action executed.
-- Connector revocation now clears cached clients and fails closed if cleanup does not complete.
-- Tool arguments are validated before approval, policy checks, and execution.
-- `FetchURL` now resolves once and pins connections to validated public addresses to prevent DNS-rebinding bypasses.
-- Project metadata and runtime version are aligned for this prerelease.
-
-### Fixed
-
-- Approval tokens are consumed atomically, preventing concurrent verification from using one approval twice.
-- Approval expiry now rejects tokens at the exact expiry boundary (`now >= exp`).
-- Scheduled jobs are claimed transactionally so parallel workers cannot run the same job twice.
-
-### Known limitations
-
-- OpenMuse remains alpha software for test accounts and non-sensitive data. Documentation drift in the security limits is being cleaned up separately.
+First PyPI release. Read-only Gmail and Google Calendar connectors, managed OAuth, OS keyring master-key support, process-worker boundary, approval and audit demos, and deployment documentation. See the v0.3.0-alpha tag for the exact source baseline.

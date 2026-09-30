@@ -56,13 +56,13 @@ This is a real terminal capture. Its raw, replayable cast is [checked into the r
 
 ## Run it locally
 
-Requires Python 3.11+ and Git. Run these commands in a terminal from a clean checkout. The deterministic demo needs no API key or live account. On Windows, use the activation command in the comment instead of `source`.
+Requires Python 3.11+ and Git. Run these commands in a terminal from a clean checkout. The deterministic demo needs no API key or live account. On Windows PowerShell, use `. .venv\Scripts\Activate.ps1` instead of `source`. In Command Prompt, use `.venv\Scripts\activate.bat`.
 
 ```bash
 git clone https://github.com/tahodev/openmuse.git
 cd openmuse
 python -m venv .venv
-source .venv/bin/activate             # Windows: .venv\Scripts\activate
+source .venv/bin/activate             # PowerShell: . .venv\Scripts\Activate.ps1
 python -m pip install -e '.[dev]'
 python examples/e2e_demo.py
 ```
@@ -76,7 +76,7 @@ python examples/verify_audit.py
 Expected result:
 
 ```text
-VERIFIED: 3 records form an intact hash chain
+VERIFIED: 5 records form an intact hash chain
 ```
 
 You should also see `VERIFIED: approved action == executed action (...)`. If you answer `N`, nothing is written and there is no completed action to verify. Change any audited byte and verification fails. More credential-free paths are indexed in [`examples/`](examples/README.md).

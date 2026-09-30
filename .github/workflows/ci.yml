@@ -41,3 +41,47 @@ jobs:
         run: |
           digest=$(docker image inspect openmuse-worker:ci --format='{{.Id}}')
           python scripts/container_conformance.py "${digest}"
+
+  windows-demo:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: {python-version: '3.12'}
+      - name: README quick-start in PowerShell
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m venv .venv
+          . .venv/Scripts/Activate.ps1
+          python -m pip install -e '.[dev]'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'y' | python examples/e2e_demo.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python examples/verify_audit.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/chat_smoke.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  first-run-rehearsal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fresh Docker README-to-first-action rehearsal
+        run: |
+          docker run --rm -v "$PWD:/source:ro" python:3.12-slim bash -c '
+            set -euo pipefail
+            started=$SECONDS
+            apt-get update -qq && apt-get install -y -qq git >/dev/null
+            git clone /source /tmp/openmuse
+            cd /tmp/openmuse
+            python -m venv .venv
+            source .venv/bin/activate
+            python -m pip install -e ".[dev]"
+            printf "y\n" | python examples/e2e_demo.py
+            python examples/verify_audit.py
+            python scripts/chat_smoke.py
+            elapsed=$((SECONDS-started))
+            echo "README rehearsal: ${elapsed}s (includes Git provisioning and install)"
+            test "$elapsed" -lt 900
+          '
