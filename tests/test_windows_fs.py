@@ -130,3 +130,91 @@ def test_native_workers_refuse_unbounded_fallback(tmp_path):
         run_bounded(["cmd"], "", 100, 1)
     with pytest.raises(OSError, match="resource limits"):
         IsolatedWorker(tmp_path / "x.py", tmp_path).run({})
+
+
+def _lock_until_killed(path, ready):
+    import time
+    from pathlib import Path
+
+    from openmuse.windows_fs import audit_stream
+    with audit_stream(Path(path)):
+        ready.set()
+        time.sleep(60)
+
+
+@native
+def test_native_crash_releases_lock_and_incomplete_tail_refuses(tmp_path):
+    path = tmp_path / "audit"
+    context = multiprocessing.get_context("spawn")
+    ready = context.Event()
+    process = context.Process(target=_lock_until_killed, args=(str(path), ready))
+    process.start()
+    try:
+        assert ready.wait(15)
+    finally:
+        process.kill()
+        process.join(10)
+    AuditLog(path).append({"event": "after-crash"})
+    assert verify_chain(path) == (True, 1, None)
+    with path.open("ab") as stream:
+        stream.write(b'{"partial":')
+    before = path.read_bytes()
+    with pytest.raises(ValueError, match="incomplete"):
+        AuditLog(path).append({"event": "must-fail"})
+    assert path.read_bytes() == before
+
+
+@native
+def test_native_leaf_pinned_and_reparse_workspace_refused(tmp_path, monkeypatch):
+    import openmuse.windows_fs as backend
+    workspace, outside = tmp_path / "workspace", tmp_path / "outside"
+    workspace.mkdir()
+    outside.mkdir()
+    (workspace / "note").write_text("original")
+    (outside / "secret").write_text("private")
+    original = backend._relative
+    attempted = []
+
+    def racing(parent, name, **kwargs):
+        handle = original(parent, name, **kwargs)
+        if name == "note":
+            with pytest.raises(OSError):
+                (workspace / "note").unlink()
+            attempted.append(True)
+        return handle
+
+    monkeypatch.setattr(backend, "_relative", racing)
+    WriteFile(workspace).run("note", "updated")
+    assert attempted and (workspace / "note").read_text() == "updated"
+    subprocess.run(["cmd", "/c", "mklink", "/J", str(tmp_path / "alias"), str(outside)], check=True,
+                   capture_output=True)
+    with pytest.raises((ValueError, OSError)):
+        WriteFile(tmp_path / "alias").run("secret", "bad")
+    assert (outside / "secret").read_text() == "private"
+
+
+@native
+def test_native_audit_failure_blocks_effect(tmp_path, monkeypatch):
+    import openmuse.windows_fs as backend
+    from openmuse.core import Agent
+    from openmuse.models import Action
+    from openmuse.policy import Policy
+    monkeypatch.setattr(backend, "lock_file", lambda *args: False)
+    monkeypatch.setattr(backend.ctypes, "get_last_error", lambda: 5)
+    agent = Agent([WriteFile(tmp_path)], Policy(allow_writes=True), tmp_path / "audit")
+    with pytest.raises(OSError):
+        agent.execute(Action("write_file", {"path": "must-not-exist", "content": "bad"}))
+    assert not (tmp_path / "must-not-exist").exists()
+
+
+@native
+def test_native_unsupported_volume_and_directory_type_refused(tmp_path, monkeypatch):
+    import openmuse.windows_fs as backend
+    with pytest.raises((ValueError, OSError)):
+        ReadFile(tmp_path).run("missing")
+    (tmp_path / "directory").mkdir()
+    with pytest.raises((ValueError, OSError)):
+        WriteFile(tmp_path).run("directory", "bad")
+    monkeypatch.setattr(backend, "volume_info", lambda *args: False)
+    with pytest.raises(OSError):
+        ReadFile(tmp_path).run("directory")
