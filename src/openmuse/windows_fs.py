@@ -12,7 +12,7 @@ import re
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 ctypes: Any = _ctypes
 
@@ -25,24 +25,24 @@ if os.name == "nt":
     ntdll = ctypes.WinDLL("ntdll")
 
     class UnicodeString(ctypes.Structure):
-        _fields_ = [("Length", wintypes.USHORT), ("MaximumLength", wintypes.USHORT), ("Buffer", wintypes.LPWSTR)]
+        _fields_: ClassVar[list[tuple[str, Any]]] = [("Length", wintypes.USHORT), ("MaximumLength", wintypes.USHORT), ("Buffer", wintypes.LPWSTR)]
 
     class ObjectAttributes(ctypes.Structure):
-        _fields_ = [("Length", wintypes.ULONG), ("RootDirectory", wintypes.HANDLE),
+        _fields_: ClassVar[list[tuple[str, Any]]] = [("Length", wintypes.ULONG), ("RootDirectory", wintypes.HANDLE),
                     ("ObjectName", ctypes.POINTER(UnicodeString)), ("Attributes", wintypes.ULONG),
                     ("SecurityDescriptor", wintypes.LPVOID), ("SecurityQualityOfService", wintypes.LPVOID)]
 
     class IoStatus(ctypes.Structure):
-        _fields_ = [("Status", ctypes.c_void_p), ("Information", ctypes.c_size_t)]
+        _fields_: ClassVar[list[tuple[str, Any]]] = [("Status", ctypes.c_void_p), ("Information", ctypes.c_size_t)]
 
     class FileInfo(ctypes.Structure):
-        _fields_ = [("attributes", wintypes.DWORD), ("creation", wintypes.FILETIME),
+        _fields_: ClassVar[list[tuple[str, Any]]] = [("attributes", wintypes.DWORD), ("creation", wintypes.FILETIME),
                     ("access", wintypes.FILETIME), ("write", wintypes.FILETIME),
                     ("volume", wintypes.DWORD), ("size_high", wintypes.DWORD), ("size_low", wintypes.DWORD),
                     ("links", wintypes.DWORD), ("index_high", wintypes.DWORD), ("index_low", wintypes.DWORD)]
 
     class Overlapped(ctypes.Structure):
-        _fields_ = [("Internal", ctypes.c_size_t), ("InternalHigh", ctypes.c_size_t),
+        _fields_: ClassVar[list[tuple[str, Any]]] = [("Internal", ctypes.c_size_t), ("InternalHigh", ctypes.c_size_t),
                     ("Offset", wintypes.DWORD), ("OffsetHigh", wintypes.DWORD), ("event", wintypes.HANDLE)]
 
     def _api(dll: Any, name: str, args: list[Any], result: Any) -> Any:

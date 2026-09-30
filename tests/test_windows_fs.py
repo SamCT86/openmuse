@@ -115,10 +115,8 @@ def test_native_lock_timeout_and_failed_sync(tmp_path, monkeypatch):
     import openmuse.windows_fs as backend
     from openmuse.windows_fs import audit_stream
     path = tmp_path / "audit"
-    with audit_stream(path):
-        with pytest.raises(TimeoutError):
-            with audit_stream(path, timeout=0.02):
-                pass
+    with audit_stream(path), pytest.raises(TimeoutError), audit_stream(path, timeout=0.02):
+        pass
     monkeypatch.setattr(backend, "flush_file", lambda _: False)
     with pytest.raises(OSError):
         AuditLog(path).append({"event": "not-reported-success"})
