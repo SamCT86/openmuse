@@ -110,7 +110,7 @@ def verify_chain(path: Path) -> tuple[bool, int, str | None]:
                 if not hmac_compare(actual, claimed):
                     return False, count, "record hash does not match"
                 previous = claimed
-    except (OSError, KeyError, json.JSONDecodeError, TypeError) as exc:
+    except (OSError, KeyError, ValueError, TypeError) as exc:
         return False, count, str(exc)
     return True, count, None
 

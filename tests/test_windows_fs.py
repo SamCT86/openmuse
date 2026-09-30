@@ -251,6 +251,10 @@ def test_native_memory_and_secret_service_refuse_missing_acl_privacy(tmp_path):
         SecretVault(tmp_path / "vault", b"k" * 32)
     assert not (tmp_path / "vault").exists()
     from unittest.mock import Mock
+    provider = Mock()
+    with pytest.raises(OSError, match="ACL privacy"):
+        SecretVault.open(tmp_path / "vault", provider)
+    provider.load_or_create.assert_not_called()
     service = SecretService(tmp_path / "socket", Mock(spec=SecretVault), b"auth")
     with pytest.raises(OSError, match="ACL privacy"):
         service.serve_once()
