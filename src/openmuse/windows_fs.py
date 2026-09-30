@@ -8,7 +8,9 @@ from __future__ import annotations
 import contextlib
 import ctypes as _ctypes
 import os
+import platform
 import re
+import sys
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -87,6 +89,8 @@ def components(raw: str) -> list[str]:
 def _require() -> None:
     if os.name != "nt":
         raise OSError("Windows backend requires native Windows")
+    if platform.machine().lower() not in {"amd64", "x86_64"} or sys.getwindowsversion().build < 22000:
+        raise OSError("native backend requires Windows 11 x64 or newer equivalent Server builds")
 
 
 def _check(handle: Any, directory: bool) -> None:
