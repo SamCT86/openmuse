@@ -238,3 +238,15 @@ def test_native_hardlink_creation_blocked_while_write_handle_held(tmp_path, monk
     monkeypatch.setattr(backend, "_relative", racing)
     WriteFile(tmp_path).run("note", "inside")
     assert attempts and not (tmp_path / "alias").exists()
+
+
+@native
+def test_native_memory_and_secret_service_refuse_missing_acl_privacy(tmp_path):
+    from openmuse.memory import MemoryStore
+    from openmuse.secret_service import SecretService
+    from openmuse.secrets import SecretVault
+    with pytest.raises(OSError, match="ACL privacy"):
+        MemoryStore(tmp_path / "memory")
+    service = SecretService(tmp_path / "socket", SecretVault(tmp_path / "vault", b"k" * 32), b"auth")
+    with pytest.raises(OSError, match="ACL privacy"):
+        service.serve_once()

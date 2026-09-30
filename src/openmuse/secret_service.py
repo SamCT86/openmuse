@@ -18,6 +18,8 @@ from .secrets import SecretVault
 class SecretService:
     def __init__(self,socket_path:Path,vault:SecretVault,auth_key:bytes): self.socket_path=socket_path; self.vault=vault; self.auth_key=auth_key
     def serve_once(self):
+        if os.name == "nt":
+            raise OSError("native Windows secret-service ACL privacy is unsupported; use WSL")
         self.socket_path.unlink(missing_ok=True)
         server=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM); server.bind(str(self.socket_path)); os.chmod(self.socket_path,0o600); server.listen(1)
         try:

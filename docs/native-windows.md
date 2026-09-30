@@ -10,6 +10,10 @@ POSIX behavior is unchanged. Network shares, removable drives, non-NTFS,
 reparse-point workspaces/ancestors/targets, hard-linked files, device namespaces,
 alternate data streams and DOS path aliases fail closed.
 
+Native MemoryStore refuses initialization because Windows ACL privacy is not yet
+implemented. The secret-service demo also refuses native serving. This is not a
+full runtime port. Windows installs include tzdata for scheduler timezone rules.
+
 Native isolated workers and the default bounded container runner refuse execution:
 Windows Job Object resource enforcement is not implemented. Use WSL for those.
 The experimental AF_UNIX secret-return demo is not included in the native gate.

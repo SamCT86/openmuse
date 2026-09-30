@@ -39,6 +39,8 @@ class Memory:
 
 class MemoryStore:
     def __init__(self, path: Path, audit: AuditLog | None = None):
+        if os.name == "nt":
+            raise OSError("native Windows memory ACL privacy is not implemented; use WSL")
         self.path = path
         self.audit = audit
 
