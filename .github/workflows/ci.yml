@@ -94,5 +94,5 @@ jobs:
           python examples/verify_audit.py
           python scripts/chat_smoke.py
           '@
-          $script | wsl --distribution Ubuntu --user root -- env OPENMUSE_SHA=${{ github.sha }} bash
+          $script | wsl --distribution Ubuntu --user root -- env OPENMUSE_SHA=${{ github.sha }} bash -c "tr -d '\r' | bash"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
