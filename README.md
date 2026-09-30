@@ -56,7 +56,21 @@ This is a real terminal capture. Its raw, replayable cast is [checked into the r
 
 ## Run it locally
 
-Requires Python 3.11+ and Git. Run these commands in a terminal from a clean checkout. The deterministic demo needs no API key or live account. The current runtime requires POSIX file descriptors and audit locking (Linux or macOS). Native Windows is not supported; Windows users need a Linux environment such as WSL. The Windows path remains under verification in issue #30.
+Requires Python 3.11+ and Git. Run these commands in a terminal from a clean checkout. The deterministic demo needs no API key or live account. The current runtime requires POSIX file descriptors and audit locking (Linux or macOS). Native Windows is not supported. On Windows 10 version 2004+ or Windows 11, use Ubuntu in WSL:
+
+```powershell
+# Administrator PowerShell; restart if Windows requests it.
+wsl --install --distribution Ubuntu
+```
+
+Open Ubuntu, finish its first-launch user setup, install prerequisites with
+`sudo apt-get update && sudo apt-get install -y python3 python3-venv git`, then run
+the Bash quick-start below **inside Ubuntu**, not in PowerShell. Use `python3`
+for the first `python -m venv` command if Ubuntu has no `python` alias. Keep the
+checkout in the Linux home directory. This route was verified on `windows-latest`
+with Ubuntu WSL; it does not claim native Windows support. CI uses the WSL root
+user for unattended provisioning, while the local instructions use your normal
+Linux user and sudo.
 
 ```bash
 git clone https://github.com/tahodev/openmuse.git
