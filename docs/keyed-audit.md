@@ -43,7 +43,9 @@ Stores written by the pre-split format (one JSON document under the
 `audit-hmac-keys` account of service `openmuse-agent`) keep working: the
 first `current()` migrates every key into its own target and deletes the
 document (best effort), and `resolve` falls back to the legacy document so
-existing keyed history verifies even before migration runs.
+existing keyed history verifies even before migration runs. A `resolve`
+racing that migration re-checks the split target once after a legacy miss,
+so a key being moved is never reported as unknown.
 
 The runtime fails closed when no credential store is available: append raises
 `AuditKeyError` before the audit file is even created, and verification reports

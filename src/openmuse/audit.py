@@ -303,21 +303,30 @@ class KeyringAuditKeys:
         self._write_pointer(_fingerprint(key))
         return self._converge()
 
+    def _read_split_key(self, key_id: str) -> bytes | None:
+        raw = self._backend.get_password(_keyring_key_service(key_id), _KEYRING_KEY_ACCOUNT)
+        if raw is None:
+            return None
+        try:
+            return _decode_key(raw)
+        except ValueError as error:
+            raise AuditKeyError("audit key store is corrupt") from error
+
     def resolve(self, key_id: str) -> bytes | None:
         # Key ids come from audit records; a malformed one must be a plain
         # miss, never a lookup of an attacker-shaped credential name.
         if not _valid_key_id(key_id):
             return None
-        raw = self._backend.get_password(_keyring_key_service(key_id), _KEYRING_KEY_ACCOUNT)
-        if raw is not None:
-            try:
-                return _decode_key(raw)
-            except ValueError as error:
-                raise AuditKeyError("audit key store is corrupt") from error
+        key = self._read_split_key(key_id)
+        if key is not None:
+            return key
         legacy = self._legacy_doc()
-        if legacy is not None:
-            return legacy[1].get(key_id)
-        return None
+        if legacy is not None and key_id in legacy[1]:
+            return legacy[1][key_id]
+        # A concurrent first-use migration may have moved the key from the
+        # legacy document to its split target between our two reads; check
+        # the target once more before declaring the key unknown.
+        return self._read_split_key(key_id)
 
 
 class FileAuditKeys(_DocKeyStore):

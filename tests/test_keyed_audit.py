@@ -734,3 +734,28 @@ def test_legacy_document_without_current_key_creates_fresh():
     key_id, key = store.current()
     assert key_id != old_id and len(key) == 32
     assert store.resolve(old_id) == old
+
+
+def test_resolve_rechecks_split_target_when_migration_races():
+    # resolve reads the split target, then the legacy document; a concurrent
+    # first-use current() can migrate (and delete the document) between those
+    # two reads. The split target must be checked once more before reporting
+    # the key as unknown.
+    backend = _SharedFakeKeyring()
+    old = secrets.token_bytes(32)
+    old_id = hashlib.sha256(old).hexdigest()[:16]
+    _seed_legacy_document(backend, {old_id: old}, old_id)
+
+    store = KeyringAuditKeys(backend=backend)
+    real_legacy_doc = store._legacy_doc
+    migrated = False
+
+    def racing_legacy_doc():
+        nonlocal migrated
+        if not migrated:
+            migrated = True
+            KeyringAuditKeys(backend=backend).current()
+        return real_legacy_doc()
+
+    store._legacy_doc = racing_legacy_doc
+    assert store.resolve(old_id) == old
