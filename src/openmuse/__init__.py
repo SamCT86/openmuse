@@ -14,7 +14,7 @@ from .scheduler import CronSchedule, Scheduler
 from .tools import ManifestMixin, Tool
 from .worker_tool import WorkerTool
 
-__version__ = "0.3.0a0"
+__version__ = "0.4.0a0"
 __all__ = [
     "Action",
     "ActionStatus",
