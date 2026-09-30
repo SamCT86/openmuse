@@ -1,4 +1,5 @@
 import json
+import os
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs
 
@@ -11,6 +12,8 @@ SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
 
 
 def manager(tmp_path, transport, now):
+    if os.name == "nt":
+        pytest.skip("native secret vault ACL privacy is unsupported")
     return GoogleOAuthManager(
         "client", "client-secret", "http://127.0.0.1/callback", {SCOPE},
         SecretVault(tmp_path / "vault.json", b"k" * 32), transport=transport, clock=lambda: now[0]

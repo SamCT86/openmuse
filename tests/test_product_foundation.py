@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,7 @@ def test_task_restart_and_cancel(tmp_path: Path):
     assert second.cancel(task.id).status == "canceled"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="native secret vault ACL privacy is unsupported")
 def test_envelope_vault_hides_plaintext(tmp_path: Path):
     vault = SecretVault(tmp_path / "vault.json", AESGCM.generate_key(bit_length=256))
     vault.put("api", "super-secret")

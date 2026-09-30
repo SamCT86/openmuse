@@ -12,7 +12,7 @@ from openmuse.windows_fs import components
 
 
 @pytest.mark.parametrize("raw", ["../x", "/x", "a//b", "a\\b", "C:/x", "x:ads", "CON", "nul.txt", "LPT1.log",
-                                 "name.", "name ", "a/../b", "\\\\server\\file", "a\x00b", "COM¹.txt"])
+                                 "name.", "name ", "a/../b", "\\\\server\\file", "a\x00b", "COM¹.txt", "LONGNA~1", "CONIN$", "CONOUT$"])
 def test_reject_windows_aliases(raw):
     with pytest.raises(ValueError):
         components(raw)
@@ -247,6 +247,27 @@ def test_native_memory_and_secret_service_refuse_missing_acl_privacy(tmp_path):
     from openmuse.secrets import SecretVault
     with pytest.raises(OSError, match="ACL privacy"):
         MemoryStore(tmp_path / "memory")
-    service = SecretService(tmp_path / "socket", SecretVault(tmp_path / "vault", b"k" * 32), b"auth")
+    with pytest.raises(OSError, match="ACL privacy"):
+        SecretVault(tmp_path / "vault", b"k" * 32)
+    assert not (tmp_path / "vault").exists()
+    from unittest.mock import Mock
+    service = SecretService(tmp_path / "socket", Mock(spec=SecretVault), b"auth")
     with pytest.raises(OSError, match="ACL privacy"):
         service.serve_once()
+
+
+@native
+def test_native_rejects_32_bit_process(tmp_path, monkeypatch):
+    import openmuse.windows_fs as backend
+    original = backend.ctypes.sizeof
+    monkeypatch.setattr(backend.ctypes, "sizeof", lambda t: 4 if t is backend.ctypes.c_void_p else original(t))
+    with pytest.raises(OSError, match="x64"):
+        ReadFile(tmp_path).run("note")
+
+
+@native
+def test_native_unlock_failure_keeps_original_error(tmp_path, monkeypatch):
+    import openmuse.windows_fs as backend
+    monkeypatch.setattr(backend, "unlock_file", lambda *args: False)
+    with pytest.raises(ValueError, match="original"), backend.audit_stream(tmp_path / "audit"):
+        raise ValueError("original")

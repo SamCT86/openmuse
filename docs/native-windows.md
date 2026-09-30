@@ -10,7 +10,7 @@ POSIX behavior is unchanged. Network shares, removable drives, non-NTFS,
 reparse-point workspaces/ancestors/targets, hard-linked files, device namespaces,
 alternate data streams and DOS path aliases fail closed.
 
-Native MemoryStore refuses initialization because Windows ACL privacy is not yet
+Native SecretVault and MemoryStore refuse initialization because Windows ACL privacy is not yet
 implemented. The secret-service demo also refuses native serving. This is not a
 full runtime port. Windows installs include tzdata for scheduler timezone rules.
 
@@ -32,7 +32,7 @@ are deliberately rejected rather than resolved.
 
 Windows-specific validation rejects backslash input separators, `:`, UNC/device
 paths, absolute paths, empty/dot/dot-dot components, trailing dot/space aliases,
-control characters and reserved DOS names. Unicode UTF-16 names are supported.
+control characters, tilde/8.3 aliases, CONIN$/CONOUT$ and reserved DOS names. Unicode UTF-16 names are supported.
 
 ## Audit boundary
 
@@ -41,6 +41,20 @@ range, with an explicit 10-second contention deadline. Tail validation, chain
 append and flush happen while locked. `FlushFileBuffers` completes before unlock.
 A partial tail, failed lock, timeout or sync failure is not reported as success.
 No thread-only or no-op lock fallback exists.
+
+The chain uses unkeyed SHA-256. It detects edits only when the editor does not
+recompute the chain; it does not authenticate records against a writer who can
+replace the log and recompute every hash. Verification refuses leaf symlinks;
+on Windows it also uses the anchored handle walk. POSIX verification does not
+pin ancestor directories, so use a trusted directory.
+
+Native file/audit creation inherits directory ACLs; it does not match POSIX
+0o600 privacy. Keep workspace and audit directories private using Windows ACLs.
+This backend does not enforce confidentiality against other local accounts.
+SecretVault, MemoryStore and secret-service stay unsupported until ACL privacy
+is implemented. Antivirus/indexer sharing violations at handle open fail closed
+without retry. The 10-second audit timeout covers acquired-handle lock contention,
+not failed opens; callers may retry the whole operation after resolving contention.
 
 ## Gates and limitations
 

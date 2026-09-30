@@ -23,3 +23,18 @@ def test_concurrent_appends_remain_one_chain(tmp_path):
     threads=[threading.Thread(target=log.append,args=({"n":i},)) for i in range(32)]
     [t.start() for t in threads]; [t.join() for t in threads]
     assert verify_chain(path)==(True,32,None)
+
+
+def test_scalar_records_fail_verification(tmp_path):
+    path = tmp_path / "audit"
+    for value in ["null", "[]", "1", '"text"', "true"]:
+        path.write_text(value + "\n")
+        assert verify_chain(path)[0] is False
+
+
+def test_verifier_refuses_leaf_symlink(tmp_path):
+    path = tmp_path / "audit"
+    AuditLog(path).append({"event": "ok"})
+    alias = tmp_path / "alias"
+    alias.symlink_to(path)
+    assert verify_chain(alias)[0] is False

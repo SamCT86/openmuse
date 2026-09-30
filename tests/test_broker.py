@@ -1,7 +1,7 @@
 """Secrets broker: raw secrets stay out of planner-visible surfaces."""
-
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -41,6 +41,8 @@ class LeakySchemaTool(SigningTool):
 
 
 def make_broker(tmp_path: Path) -> SecretBroker:
+    if os.name == "nt":
+        pytest.skip("native secret vault ACL privacy is unsupported")
     vault = SecretVault(tmp_path / "vault.json", b"k" * 32)
     vault.put("api_token", PLAINTEXT)
     return SecretBroker(vault, AuditLog(tmp_path / "audit.jsonl"))

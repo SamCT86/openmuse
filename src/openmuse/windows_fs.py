@@ -73,12 +73,15 @@ if os.name == "nt":
     flush_file = _api(kernel, "FlushFileBuffers", [wintypes.HANDLE], wintypes.BOOL)
 
 
-_RESERVED = re.compile(r"^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|$)", re.IGNORECASE)
+OBJ_CASE_INSENSITIVE = 0x40  # ObjectAttributes name matching, not OBJ_DONT_REPARSE.
+FILE_OPEN_REPARSE_POINT = 0x200000  # Open the reparse object itself for inspection.
+
+_RESERVED = re.compile(r"^(CONIN\$|CONOUT\$|CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|$)", re.IGNORECASE)
 
 
 def components(raw: str) -> list[str]:
     """Windows has aliases and namespaces that POSIX does not."""
-    if not raw or "\\" in raw or any(c in raw for c in '\x00:<>"|?*'):
+    if not raw or "\\" in raw or any(c in raw for c in '\x00:<>"|?*~'):
         raise ValueError("unsupported Windows path")
     parts = raw.split("/")
     if any(not p or p in {".", ".."} or p.endswith((".", " ")) or _RESERVED.match(p)
@@ -90,7 +93,7 @@ def components(raw: str) -> list[str]:
 def _require() -> None:
     if os.name != "nt":
         raise OSError("Windows backend requires native Windows")
-    if platform.machine().lower() not in {"amd64", "x86_64"} or sys.getwindowsversion().build < 22000:
+    if ctypes.sizeof(ctypes.c_void_p) != 8 or platform.machine().lower() not in {"amd64", "x86_64"} or sys.getwindowsversion().build < 22000:
         raise OSError("native backend requires Windows 11 x64 or newer equivalent Server builds")
 
 
@@ -118,13 +121,13 @@ def _relative(parent: Any, name: str, *, directory: bool, write: bool = False,
     if encoded_length > 65532:
         raise ValueError("Windows component too long")
     text = UnicodeString(encoded_length, encoded_length + 2, ctypes.cast(buffer, wintypes.LPWSTR))
-    attrs = ObjectAttributes(ctypes.sizeof(ObjectAttributes), parent, ctypes.pointer(text), 0x40, None, None)
+    attrs = ObjectAttributes(ctypes.sizeof(ObjectAttributes), parent, ctypes.pointer(text), OBJ_CASE_INSENSITIVE, None, None)
     result, status = wintypes.HANDLE(), IoStatus()
     # Directories are pinned without write/delete sharing. A reparse mutation
     # or ancestor rename is refused while the operation holds these handles.
     access = 0x100000 | 0x80 | (0x21 if directory else (0x3 if write else 0x1))
     share = 0x3 if audit else (0x1 if directory or not write else 0)
-    options = 0x200000 | 0x20 | (0x1 if directory else 0x40)
+    options = FILE_OPEN_REPARSE_POINT | 0x20 | (0x1 if directory else 0x40)
     code = ntcreate(ctypes.byref(result), access, ctypes.byref(attrs), ctypes.byref(status),
                     None, 0x80, share, 3 if create_missing else 1, options, None, 0)
     if code < 0:
@@ -179,7 +182,7 @@ def file_handle(workspace: Path, raw: str, *, write: bool = False,
             close(handle)
 
 
-def _duplicate_fd(handle: Any) -> int:
+def _duplicate_fd(handle: Any, *, write: bool = True) -> int:
     # Transfer a duplicate to the CRT, leaving the original context-owned.
     duplicate = wintypes.HANDLE()
     duplicate_api = _api(kernel, "DuplicateHandle", [wintypes.HANDLE, wintypes.HANDLE,
@@ -189,14 +192,14 @@ def _duplicate_fd(handle: Any) -> int:
     if not duplicate_api(process, handle, process, ctypes.byref(duplicate), 0, False, 2):
         raise ctypes.WinError(ctypes.get_last_error())
     try:
-        return msvcrt.open_osfhandle(duplicate.value, getattr(os, "O_BINARY", 0x8000) | os.O_RDWR)
+        return msvcrt.open_osfhandle(duplicate.value, getattr(os, "O_BINARY", 0x8000) | (os.O_RDWR if write else os.O_RDONLY))
     except BaseException:
         close(duplicate)
         raise
 
 
 def read_text(workspace: Path, raw: str) -> str:
-    with file_handle(workspace, raw) as handle, os.fdopen(_duplicate_fd(handle), "r", encoding="utf-8") as stream:
+    with file_handle(workspace, raw) as handle, os.fdopen(_duplicate_fd(handle, write=False), "r", encoding="utf-8") as stream:
         return stream.read()
 
 
@@ -230,5 +233,5 @@ def audit_stream(path: Path, timeout: float = 10) -> Iterator[Any]:
                 if not flush_file(handle):
                     raise ctypes.WinError(ctypes.get_last_error())
         finally:
-            if not unlock_file(handle, 0, 0xffffffff, 0xffffffff, ctypes.byref(overlap)):
+            if not unlock_file(handle, 0, 0xffffffff, 0xffffffff, ctypes.byref(overlap)) and sys.exc_info()[0] is None:
                 raise ctypes.WinError(ctypes.get_last_error())

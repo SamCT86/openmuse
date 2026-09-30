@@ -77,14 +77,31 @@ class AuditLog:
             os.fsync(handle.fileno())
 
 
+@contextlib.contextmanager
+def _verify_stream(path: Path):
+    """Read only a pinned ordinary file; never follow a leaf symlink."""
+    if os.name == "nt":
+        from .windows_fs import _duplicate_fd, file_handle
+        with file_handle(path.parent, path.name) as handle, os.fdopen(
+            _duplicate_fd(handle, write=False), "r", encoding="utf-8"
+        ) as stream:
+            yield stream
+    else:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd, "r", encoding="utf-8") as stream:
+            yield stream
+
+
 def verify_chain(path: Path) -> tuple[bool, int, str | None]:
     """Independently stream every link; memory usage is bounded by a record."""
     previous = ZERO
     count = 0
     try:
-        with path.open("r", encoding="utf-8") as handle:
+        with _verify_stream(path) as handle:
             for count, line in enumerate(handle, start=1):
                 record = json.loads(line)
+                if not isinstance(record, dict):
+                    return False, count, "audit record must be an object"
                 claimed = record.pop("hash")
                 if record.get("previous_hash") != previous:
                     return False, count, "previous hash does not match"

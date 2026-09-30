@@ -18,6 +18,10 @@ class SecretVault:
     path: Path
     master_key: bytes
 
+    def __post_init__(self) -> None:
+        if os.name == "nt":
+            raise OSError("native Windows secret vault ACL privacy is not implemented; use WSL")
+
     @classmethod
     def open(cls, path: Path, provider: MasterKeyProvider) -> "SecretVault":
         return cls(path, provider.load_or_create())
