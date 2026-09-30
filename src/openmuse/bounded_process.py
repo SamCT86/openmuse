@@ -1,6 +1,9 @@
 """Capture child output to capped files instead of unbounded RAM pipes."""
 
-import resource
+import sys
+
+if sys.platform != "win32":
+    import resource
 import subprocess
 import tempfile
 from collections.abc import Sequence
@@ -13,6 +16,8 @@ def run_bounded(
     *, cwd: Path | None = None, env: dict[str, str] | None = None,
     preexec_fn: Any = None,
 ) -> subprocess.CompletedProcess[str]:
+    if sys.platform == "win32":
+        raise OSError("native Windows bounded child capture is unsupported; use WSL")
     if output_bytes < 1 or timeout_seconds <= 0:
         raise ValueError("positive output and timeout limits required")
 

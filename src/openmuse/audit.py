@@ -1,6 +1,6 @@
 """Hash-chained audit with bounded append and independent streaming verification."""
 
-import fcntl
+import contextlib
 import hashlib
 import hmac
 import json
@@ -11,6 +11,22 @@ from typing import Any
 
 SENSITIVE = {"password", "token", "secret", "authorization", "api_key", "cookie"}
 ZERO = "0" * 64
+
+
+@contextlib.contextmanager
+def _append_stream(path: Path):
+    if os.name == "nt":
+        from .windows_fs import audit_stream
+        with audit_stream(path) as handle:
+            yield handle
+    else:
+        import fcntl
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "r+b") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            yield handle
+
 
 
 def redact(v: Any) -> Any:
@@ -49,10 +65,7 @@ class AuditLog:
         self.path = path
 
     def append(self, record: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_APPEND, 0o600)
-        with os.fdopen(fd, "r+b") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        with _append_stream(self.path) as handle:
             last = _last_record(handle)
             clean = redact(record)
             clean["previous_hash"] = last["hash"] if last else ZERO

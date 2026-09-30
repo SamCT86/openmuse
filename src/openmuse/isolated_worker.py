@@ -2,9 +2,11 @@
 
 import json
 import os
-import resource
-import subprocess
 import sys
+
+if sys.platform != "win32":
+    import resource
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -27,6 +29,8 @@ class WorkerResult:
 
 
 def _limit_process(limits: WorkerLimits) -> None:
+    if sys.platform == "win32":
+        raise OSError("POSIX resource limits required")
     resource.setrlimit(resource.RLIMIT_AS, (limits.memory_bytes, limits.memory_bytes))
     resource.setrlimit(resource.RLIMIT_NOFILE, (limits.open_files, limits.open_files))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
@@ -47,6 +51,8 @@ class IsolatedWorker:
         self.limits = limits or WorkerLimits()
 
     def run(self, request: dict[str, Any], environment: dict[str, str] | None = None) -> WorkerResult:
+        if sys.platform == "win32":
+            raise OSError("native Windows isolated workers lack approved resource limits; use WSL")
         self.workspace.mkdir(parents=True, exist_ok=True)
         env = {"PATH": os.environ.get("PATH", ""), "PYTHONIOENCODING": "utf-8", **(environment or {})}
         try:

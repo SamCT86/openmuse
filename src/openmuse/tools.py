@@ -76,6 +76,9 @@ class ReadFile(ManifestMixin):
         self.schema = {"type": "object", "required": ["path"], "properties": {"path": {"type": "string"}}}
 
     def run(self, path: str, **_: Any) -> str:
+        if os.name == "nt":
+            from .windows_fs import read_text
+            return read_text(self.workspace, path)
         parent, leaf = _parent_fd(self.workspace, path)
         try:
             fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
@@ -103,6 +106,9 @@ class WriteFile(ManifestMixin):
         }
 
     def run(self, path: str, content: str, **_: Any) -> str:
+        if os.name == "nt":
+            from .windows_fs import write_text
+            return write_text(self.workspace, path, content)
         parent, leaf = _parent_fd(self.workspace, path, create=True)
         try:
             fd = os.open(leaf, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=parent)
