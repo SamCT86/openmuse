@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (keyed-audit-chain branch)
+## 0.4.1a0 (2026-10-01)
 
 - Audit hash chain replaced with keyed HMAC-SHA256 chaining; the key lives in the OS credential store (macOS Keychain, Windows Credential Manager, libsecret via `keyring`) and never in the workspace or repository. Forging or editing audit records now requires key access, not just file write.
 - Fail-closed key handling: append raises `AuditKeyError` before touching the audit file and verification fails when no credential store is available; no silent fallback to unkeyed chains. `OPENMUSE_AUDIT_KEY_FILE` selects an explicit owner-only key file for containers, demos, and CI (not a security boundary).
